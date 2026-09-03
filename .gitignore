@@ -1,0 +1,7 @@
+﻿# saidas de compilacao
+*.exe
+*.pdb
+
+# nao versionar copias por atalho nem icones gerados
+icones/
+dist/
