@@ -170,7 +170,7 @@ class Studio : Form
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FolderPin");
 
     TextBox txtPasta, txtNome, txtIcone;
-    CheckBox chkArvore, chkAbas, chkMax, chkSimples;
+    CheckBox chkArvore, chkArvoreRaiz, chkArvoreArquivos, chkAbas, chkMax, chkSimples;
     ComboBox cmbTema;
     PictureBox picIcone;
     ListBox lst;
@@ -193,8 +193,8 @@ class Studio : Form
     public Studio()
     {
         Text = "FolderPin - atalhos de pasta na barra de tarefas";
-        ClientSize = new Size(760, 620);
-        MinimumSize = new Size(700, 560);
+        ClientSize = new Size(760, 646);
+        MinimumSize = new Size(700, 586);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = dark ? Bg : SystemColors.Control;
         ForeColor = dark ? Fg : SystemColors.ControlText;
@@ -312,18 +312,44 @@ class Studio : Form
         chkMax.ForeColor = dark ? Fg : SystemColors.ControlText;
         Controls.Add(chkMax);
 
+        chkArvoreRaiz = new CheckBox();
+        chkArvoreRaiz.Text = "Arvore so desta pasta";
+        chkArvoreRaiz.Location = new Point(16, y + 26);
+        chkArvoreRaiz.AutoSize = true;
+        chkArvoreRaiz.ForeColor = dark ? Fg : SystemColors.ControlText;
+        Controls.Add(chkArvoreRaiz);
+        new ToolTip().SetToolTip(chkArvoreRaiz,
+            "A arvore comeca na pasta escolhida e mostra so o que esta dentro dela.");
+
         chkSimples = new CheckBox();
         chkSimples.Text = "Janela simples (so a lista)";
-        chkSimples.Location = new Point(16, y + 26);
+        chkSimples.Location = new Point(190, y + 26);
         chkSimples.AutoSize = true;
         chkSimples.ForeColor = dark ? Fg : SystemColors.ControlText;
-        chkSimples.CheckedChanged += delegate
+        Controls.Add(chkSimples);
+
+        chkArvoreArquivos = new CheckBox();
+        chkArvoreArquivos.Text = "Mostrar tambem os arquivos na arvore";
+        chkArvoreArquivos.Location = new Point(16, y + 52);
+        chkArvoreArquivos.AutoSize = true;
+        chkArvoreArquivos.Checked = true;
+        chkArvoreArquivos.ForeColor = dark ? Fg : SystemColors.ControlText;
+        Controls.Add(chkArvoreArquivos);
+        new ToolTip().SetToolTip(chkArvoreArquivos,
+            "Alem das pastas, a arvore lista os arquivos soltos. Clicar num arquivo leva a lista ate a pasta dele.");
+
+        EventHandler estadoArvore = delegate
         {
             bool s = chkSimples.Checked;
             chkArvore.Enabled = !s;
             chkAbas.Enabled = !s;
+            chkArvoreRaiz.Enabled = !s && chkArvore.Checked;
+            chkArvoreArquivos.Enabled = chkArvoreRaiz.Enabled && chkArvoreRaiz.Checked;
         };
-        Controls.Add(chkSimples);
+        chkSimples.CheckedChanged += estadoArvore;
+        chkArvore.CheckedChanged += estadoArvore;
+        chkArvoreRaiz.CheckedChanged += estadoArvore;
+        estadoArvore(null, EventArgs.Empty);
 
         Controls.Add(Rotulo("Tema:", 410, y + 2));
         cmbTema = new ComboBox();
@@ -336,7 +362,7 @@ class Studio : Form
         cmbTema.Items.AddRange(new object[] { "Seguir o Windows", "Sempre escuro", "Sempre claro" });
         cmbTema.SelectedIndex = 0;
         Controls.Add(cmbTema);
-        y += 66;
+        y += 92;
 
         btnCriar = Botao("Criar atalho", 16, y, 160, Cria, true);
         Controls.Add(btnCriar);
@@ -690,6 +716,8 @@ class Studio : Form
         if (icoFinal != null) args.Append(" --icon \"").Append(icoFinal).Append('"');
         if (chkSimples.Checked) args.Append(" --simples");
         if (!chkArvore.Checked) args.Append(" --no-tree");
+        else if (chkArvoreRaiz.Checked)
+            args.Append(chkArvoreArquivos.Checked ? " --tree-files" : " --tree-root");
         if (!chkAbas.Checked) args.Append(" --no-tabs");
         if (chkMax.Checked) args.Append(" --max");
         if (cmbTema.SelectedIndex == 1) args.Append(" --dark");
@@ -933,6 +961,11 @@ class Studio : Form
         if (args == null) args = "";
         chkSimples.Checked = args.IndexOf("--simples", StringComparison.OrdinalIgnoreCase) >= 0;
         chkArvore.Checked = args.IndexOf("--no-tree", StringComparison.OrdinalIgnoreCase) < 0;
+        chkArvoreArquivos.Checked = args.IndexOf("--tree-files", StringComparison.OrdinalIgnoreCase) >= 0;
+        chkArvoreRaiz.Checked = chkArvoreArquivos.Checked ||
+            args.IndexOf("--tree-root", StringComparison.OrdinalIgnoreCase) >= 0;
+        chkArvoreRaiz.Enabled = chkArvore.Checked && !chkSimples.Checked;
+        chkArvoreArquivos.Enabled = chkArvoreRaiz.Enabled && chkArvoreRaiz.Checked;
         chkAbas.Checked = args.IndexOf("--no-tabs", StringComparison.OrdinalIgnoreCase) < 0;
         chkMax.Checked = args.IndexOf("--max", StringComparison.OrdinalIgnoreCase) >= 0;
 
@@ -987,6 +1020,10 @@ class Studio : Form
         txtIcone.Text = "";
         picIcone.Image = null;
         chkArvore.Checked = true;
+        chkArvoreRaiz.Checked = false;
+        chkArvoreRaiz.Enabled = true;
+        chkArvoreArquivos.Checked = true;
+        chkArvoreArquivos.Enabled = false;
         chkAbas.Checked = true;
         chkMax.Checked = false;
         chkSimples.Checked = false;

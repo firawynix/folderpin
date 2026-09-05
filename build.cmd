@@ -21,11 +21,11 @@ echo [1/3] motor da janela...
 if errorlevel 1 exit /b 1
 
 echo [2/3] configurador...
-"%CSC%" %OPTS% %REFS% /win32icon:"folderpin.ico" /resource:"FolderPin.exe,FolderPin.exe" /out:"FolderPin Studio.exe" "FolderPinStudio.cs"
+"%CSC%" %OPTS% %REFS% /win32icon:"folderpin.ico" /resource:"FolderPin.exe" /out:"FolderPin Studio.exe" "FolderPinStudio.cs"
 if errorlevel 1 exit /b 1
 
 echo [3/3] instalador...
-"%CSC%" %OPTS% %REFS% /win32icon:"folderpin.ico" /resource:"FolderPin.exe,FolderPin.exe" /resource:"FolderPin Studio.exe,FolderPin Studio.exe" /out:"FolderPin Setup.exe" "FolderPinSetup.cs"
+"%CSC%" %OPTS% %REFS% /win32icon:"folderpin.ico" /resource:"FolderPin.exe" /resource:"FolderPin Studio.exe" /out:"FolderPin Setup.exe" "FolderPinSetup.cs"
 if errorlevel 1 exit /b 1
 
 echo.

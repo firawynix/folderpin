@@ -58,13 +58,21 @@ Para mudar um atalho depois: **2 cliques** nele na lista, ajuste, **Salvar alter
 
 | Opção | O que faz |
 |---|---|
-| Árvore de pastas | painel de navegação na lateral |
+| Árvore de pastas | painel de navegação na lateral, igual ao do Explorador |
+| Árvore só desta pasta | a árvore **começa na pasta escolhida**: nada de Este Computador, OneDrive ou Rede em cima |
+| Mostrar também os arquivos | com a árvore de raiz própria, os arquivos soltos aparecem nela junto das subpastas |
 | Abas | tira de abas, cada uma com histórico e seleção próprios |
 | Janela simples | só a lista: sem barra, sem abas, sem árvore |
 | Abrir maximizado | abre ocupando a tela |
 | Tema | Seguir o Windows (padrão), Sempre escuro, Sempre claro |
 
 ![Abas](docs/abas.png)
+
+Árvore só desta pasta, com os arquivos:
+
+![Árvore só desta pasta](docs/arvore-raiz.png)
+
+Nesse modo a lateral é um `INameSpaceTreeControl` próprio, com a raiz na sua pasta — o painel do `IExplorerBrowser` sempre nasce na Área de Trabalho e não aceita outra raiz. Entrar numa subpasta pela lista abre o caminho na árvore; clicar num arquivo leva a lista até a pasta dele. A cor da lateral segue a do Windows: o mesmo fundo da lista, ou o tom da cor de destaque quando "Mostrar cor de destaque em barras de título e bordas de janela" está ligado.
 
 Janela simples, para quem quer só a pasta:
 
@@ -106,6 +114,8 @@ FolderPin.exe "C:\pasta" [opções]
   --icon <arquivo>   .ico, ou "arquivo,índice" (ex.: imageres.dll,-109)
   --aumid <id>       AppUserModelID explícito
   --no-tree          sem painel de navegação
+  --tree-root        árvore com a raiz nesta pasta (só ela e o que está dentro)
+  --tree-files       o mesmo, com os arquivos soltos na árvore (implica --tree-root)
   --no-tabs          sem abas
   --simples          só a lista, sem barra nem abas
   --dark | --light   força o tema (padrão: seguir o Windows)
@@ -125,7 +135,7 @@ O instalador carrega os outros dois programas embutidos como recurso: é **um ar
 
 - **Fixar na barra é manual** (bloqueio da Microsoft, explicado acima)
 - **Binários sem assinatura**: SmartScreen avisa na primeira execução
-- Com a árvore ligada, o shell traz junto a faixa dele (*Organizar / Incluir na biblioteca / …*) — é a barra da era Windows 7, embutida no `IExplorerBrowser`; a API não expõe como esconder
+- Com a árvore **do shell** ligada, o shell traz junto a faixa dele (*Organizar / Incluir na biblioteca / …*) — é a barra da era Windows 7, embutida no `IExplorerBrowser`; a API não expõe como esconder
 - Sem barra de busca e sem ribbon moderno
 - Trocar o ícone de um atalho **já fixado** só aparece depois de reiniciar o Explorador
 - Instalador escrito em .NET não consegue instalar o próprio .NET: numa máquina sem nenhum .NET Framework 4.x ele nem abre
@@ -154,6 +164,9 @@ Anotados porque são armadilhas reais de shell no Windows:
 - **Modo escuro do shell** não tem API pública: é `SetPreferredAppMode` (uxtheme, ordinal 135) + `FlushMenuThemes` (136), chamados **antes** de criar a janela, mais `DwmSetWindowAttribute(20)` para a barra de título
 - **Definir `Width` no construtor dispara `OnResize`** antes dos controles existirem — um `null` ali estoura como `0xC0000005` "módulo desconhecido", com cara de erro nativo
 - **Dois atalhos apontando para o mesmo `.exe` colapsam num botão só**, porque o AppUserModelID sai do caminho do executável. É o mesmo motivo de perfil do Chrome precisar de AUMID próprio
+- **A árvore do `IExplorerBrowser` (`EBO_SHOWFRAMES`) não muda de raiz.** Para começar na pasta escolhida é preciso hospedar o `INameSpaceTreeControl` (o mesmo controle do Explorador) e chamar `AppendRoot` com o `IShellItem` dela — o browser fica sem a faixa e a árvore vira controle próprio, com divisor arrastável
+- **A seleção dessa árvore é lida por relógio, não por evento**: `INameSpaceTreeControlEvents` tem 18 métodos e errar a ordem da tabela derruba o processo. Um `GetSelectedItems` a cada 250 ms custa nada e não arrisca nada
+- **`TVM_SETBKCOLOR` pinta o fundo da árvore**, que por padrão não acompanha a cor de destaque; a cor sai de `HKCU\Software\Microsoft\Windows\DWM\AccentColor` (em ABGR) e é reaplicada em `WM_DWMCOLORIZATIONCOLORCHANGED`
 
 ## Licença
 

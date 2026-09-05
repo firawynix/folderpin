@@ -27,6 +27,64 @@ static class Native
     public static extern void ILFree(IntPtr pidl);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+    public static extern void SHCreateItemFromParsingName(
+        [MarshalAs(UnmanagedType.LPWStr)] string path, IntPtr bc, ref Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out object item);
+
+    [DllImport("user32.dll")]
+    public static extern bool MoveWindow(IntPtr hwnd, int x, int y, int cx, int cy, bool repaint);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr FindWindowEx(IntPtr pai, IntPtr depoisDe, string classe, string titulo);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool InvalidateRect(IntPtr hwnd, IntPtr rect, bool apaga);
+
+    // Windows guarda o destaque em ABGR; o painel de controle chama de "cor de destaque".
+    public static Color CorDeDestaque()
+    {
+        try
+        {
+            object v = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM",
+                "AccentColor", null);
+            if (v == null) return Color.Empty;
+            uint n = unchecked((uint)Convert.ToInt32(v));
+            return Color.FromArgb((int)(n & 0xFF), (int)((n >> 8) & 0xFF), (int)((n >> 16) & 0xFF));
+        }
+        catch { return Color.Empty; }
+    }
+
+    // "Mostrar cor de destaque em barras de titulo e bordas de janela"
+    public static bool DestaqueNasSuperficies()
+    {
+        try
+        {
+            object v = Registry.GetValue(
+                @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                "ColorPrevalence", 0);
+            return v != null && Convert.ToInt32(v) != 0;
+        }
+        catch { return false; }
+    }
+
+    // IShellItem a partir de caminho de disco ou local do shell ("shell:...", "::{CLSID}").
+    public static IShellItem ItemDe(string caminho)
+    {
+        if (string.IsNullOrEmpty(caminho)) return null;
+        try
+        {
+            Guid iid = new Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE");
+            object o;
+            SHCreateItemFromParsingName(caminho, IntPtr.Zero, ref iid, out o);
+            return o as IShellItem;
+        }
+        catch { return null; }
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
     public static extern void SetCurrentProcessExplicitAppUserModelID(
         [MarshalAs(UnmanagedType.LPWStr)] string appId);
 
@@ -165,6 +223,65 @@ interface IShellView
     void GetItemObject(uint uItem, ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object ppv);
 }
 
+[ComImport, Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"),
+ InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IShellItem
+{
+    void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+    void GetParent(out IShellItem ppsi);
+    void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
+    void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+    void Compare(IShellItem psi, uint hint, out int piOrder);
+}
+
+[ComImport, Guid("B63EA76D-1F85-456F-A19C-48159EFA858B"),
+ InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IShellItemArray
+{
+    void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+    void GetPropertyStore(int flags, ref Guid riid, out IntPtr ppv);
+    void GetPropertyDescriptionList(IntPtr keyType, ref Guid riid, out IntPtr ppv);
+    void GetAttributes(int dwAttribFlags, uint sfgaoMask, out uint psfgaoAttribs);
+    void GetCount(out uint pdwNumItems);
+    void GetItemAt(uint dwIndex, out IShellItem ppsi);
+    void EnumItems(out IntPtr ppenumShellItems);
+}
+
+[ComImport, Guid("00000114-0000-0000-C000-000000000046"),
+ InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IOleWindow
+{
+    void GetWindow(out IntPtr phwnd);
+    void ContextSensitiveHelp([MarshalAs(UnmanagedType.Bool)] bool fEnterMode);
+}
+
+// Mesmo controle de arvore que o Explorer usa, mas com raiz propria:
+// AppendRoot decide onde a arvore comeca, e nada acima dela aparece.
+[ComImport, Guid("028212A3-B627-47E9-8856-C14265554E4F"),
+ InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface INameSpaceTreeControl
+{
+    void Initialize(IntPtr hwndParent, ref RECT prc, uint nstcsFlags);
+    void TreeAdvise(IntPtr punk, out uint pdwCookie);
+    void TreeUnadvise(uint dwCookie);
+    void AppendRoot(IShellItem psiRoot, uint grfEnumFlags, uint grfRootStyle, IntPtr pif);
+    void InsertRoot(int iIndex, IShellItem psiRoot, uint grfEnumFlags, uint grfRootStyle, IntPtr pif);
+    void RemoveRoot(IShellItem psiRoot);
+    void RemoveAllRoots();
+    void GetRootItems(out IShellItemArray ppsiaRootItems);
+    void SetItemState(IShellItem psi, uint nstcisMask, uint nstcisFlags);
+    void GetItemState(IShellItem psi, uint nstcisMask, out uint pnstcisFlags);
+    void GetSelectedItems(out IShellItemArray psiaItems);
+    void GetItemCustomState(IShellItem psi, out int piStateNumber);
+    void SetItemCustomState(IShellItem psi, int iStateNumber);
+    void EnsureItemVisible(IShellItem psi);
+    void SetTheme([MarshalAs(UnmanagedType.LPWStr)] string pszTheme);
+    void GetNextItem(IShellItem psi, uint nstcgi, out IShellItem ppsiNext);
+    void HitTest(IntPtr ppt, out IShellItem ppsiOut);
+    void GetItemRect(IShellItem psi, out RECT prect);
+    void CollapseAll();
+}
+
 [ComVisible(true)]
 class BrowserEvents : IExplorerBrowserEvents
 {
@@ -200,6 +317,24 @@ class Faixa : Panel
 class FolderWindow : Form, IMessageFilter
 {
     const uint EBO_SHOWFRAMES = 0x2;
+    const uint SHCONTF_FOLDERS = 0x20;
+    const uint SHCONTF_NONFOLDERS = 0x40;
+    const uint SFGAO_FOLDER = 0x20000000;
+    const uint NSTCRS_EXPANDED = 0x2;
+    const uint NSTCIS_SELECTED = 0x1;
+    const uint NSTCS_HASEXPANDOS = 0x1;
+    const uint NSTCS_FULLROWSELECT = 0x8;
+    const uint NSTCS_ROOTHASEXPANDO = 0x40;
+    const uint NSTCS_SHOWSELECTIONALWAYS = 0x80;
+    const uint NSTCS_TABSTOP = 0x20000;
+    const uint NSTCS_AUTOHSCROLL = 0x100000;
+    const uint NSTCS_FADEINOUTEXPANDOS = 0x200000;
+    const int LarguraDivisor = 5;
+    const uint NSTCIS_EXPANDED = 0x2;
+    const int TVM_SETBKCOLOR = 0x111D;
+    const int TVM_SETTEXTCOLOR = 0x111E;
+    const int WM_DWMCOLORIZATIONCOLORCHANGED = 0x320;
+    const int WM_THEMECHANGED = 0x31A;
     const uint EBO_NOBORDER = 0x40;
     const uint FVM_DETAILS = 4;
     const uint SBSP_PARENT = 0x2000;
@@ -223,10 +358,19 @@ class FolderWindow : Form, IMessageFilter
 
     readonly string startPath;
     readonly bool tree;
+    readonly bool arvoreRaiz;
+    readonly bool arvoreArquivos;
     readonly bool dark;
     readonly bool comAbas;
 
     Faixa faixa;
+    Panel painelArvore, divisor;
+    INameSpaceTreeControl nstc;
+    IntPtr hwndArvore = IntPtr.Zero;
+    int larguraArvore = 240;
+    System.Windows.Forms.Timer relogioArvore;
+    string ultimaSelecao = "";
+    bool sincronizando, arrastando;
     Panel bar;
     Button btnBack, btnFwd, btnUp;
     TextBox txtPath;
@@ -240,11 +384,14 @@ class FolderWindow : Form, IMessageFilter
     readonly bool simples;
 
     public FolderWindow(string path, string iconPath, bool showTree, bool useDark, bool maximized,
-        bool tabs, bool janelaSimples)
+        bool tabs, bool janelaSimples, bool soEstaPasta, bool comArquivos)
     {
         startPath = path;
         simples = janelaSimples;
-        tree = showTree && !simples;
+        // arvore propria: raiz na pasta escolhida, sem o resto do computador em cima
+        arvoreRaiz = showTree && soEstaPasta && !simples;
+        arvoreArquivos = arvoreRaiz && comArquivos;
+        tree = showTree && !simples && !arvoreRaiz;
         dark = useDark;
         comAbas = tabs && !simples;
         if (maximized) WindowState = FormWindowState.Maximized;
@@ -514,10 +661,254 @@ class FolderWindow : Form, IMessageFilter
         return (ativa >= 0 && ativa < abas.Count) ? abas[ativa] : null;
     }
 
+    int Topo()
+    {
+        return (bar != null ? bar.Height : 0) + (faixa != null ? faixa.Height : 0);
+    }
+
     Rectangle AreaConteudo()
     {
-        int topo = (bar != null ? bar.Height : 0) + (faixa != null ? faixa.Height : 0);
-        return new Rectangle(0, topo, ClientSize.Width, Math.Max(0, ClientSize.Height - topo));
+        int topo = Topo();
+        int esq = (painelArvore != null) ? larguraArvore + LarguraDivisor : 0;
+        return new Rectangle(esq, topo, Math.Max(0, ClientSize.Width - esq),
+            Math.Max(0, ClientSize.Height - topo));
+    }
+
+    // ---------- arvore com raiz na pasta ----------
+
+    void MontaArvore()
+    {
+        int topo = Topo();
+        int alt = Math.Max(0, ClientSize.Height - topo);
+
+        painelArvore = new Panel();
+        painelArvore.BackColor = dark ? BgDark : SystemColors.Window;
+        painelArvore.Bounds = new Rectangle(0, topo, larguraArvore, alt);
+        Controls.Add(painelArvore);
+        painelArvore.CreateControl();
+
+        divisor = new Panel();
+        divisor.BackColor = dark ? Color.FromArgb(56, 56, 56) : SystemColors.ControlDark;
+        divisor.Cursor = Cursors.VSplit;
+        divisor.Bounds = new Rectangle(larguraArvore, topo, LarguraDivisor, alt);
+        divisor.MouseDown += delegate { arrastando = true; };
+        divisor.MouseUp += delegate { arrastando = false; };
+        divisor.MouseMove += delegate (object s, MouseEventArgs ev)
+        {
+            if (!arrastando) return;
+            int x = divisor.Left + ev.X;
+            larguraArvore = Math.Max(120, Math.Min(x, ClientSize.Width - 220));
+            Reposiciona();
+        };
+        Controls.Add(divisor);
+
+        try
+        {
+            Type t = Type.GetTypeFromCLSID(new Guid("AE054212-3535-4430-83ED-D501AA6680E6"));
+            nstc = (INameSpaceTreeControl)Activator.CreateInstance(t);
+
+            RECT rc = new RECT();
+            rc.left = 0; rc.top = 0;
+            rc.right = painelArvore.ClientSize.Width; rc.bottom = painelArvore.ClientSize.Height;
+            nstc.Initialize(painelArvore.Handle, ref rc,
+                NSTCS_HASEXPANDOS | NSTCS_ROOTHASEXPANDO | NSTCS_FULLROWSELECT |
+                NSTCS_FADEINOUTEXPANDOS | NSTCS_SHOWSELECTIONALWAYS | NSTCS_TABSTOP |
+                NSTCS_AUTOHSCROLL);
+            Log("nstc initialize ok");
+
+            IOleWindow ow = nstc as IOleWindow;
+            if (ow != null) { try { ow.GetWindow(out hwndArvore); } catch { } }
+
+            try { nstc.SetTheme("Explorer"); } catch { }
+            if (dark && hwndArvore != IntPtr.Zero)
+            {
+                try { Native.AllowDarkModeForWindow(hwndArvore, true); } catch { }
+                try { Native.SetWindowTheme(hwndArvore, "DarkMode_Explorer", null); } catch { }
+            }
+            AplicaCorArvore();
+
+            IShellItem raiz = Native.ItemDe(startPath);
+            uint conteudo = SHCONTF_FOLDERS | (arvoreArquivos ? SHCONTF_NONFOLDERS : 0);
+            if (raiz != null) nstc.AppendRoot(raiz, conteudo, NSTCRS_EXPANDED, IntPtr.Zero);
+            Log("nstc raiz ok");
+
+            relogioArvore = new System.Windows.Forms.Timer();
+            relogioArvore.Interval = 250;
+            relogioArvore.Tick += VigiaArvore;
+            relogioArvore.Start();
+        }
+        catch (Exception ex)
+        {
+            Log("arvore falhou: " + ex.Message);
+            nstc = null;
+        }
+    }
+
+    // A arvore fica da cor do Windows: destaque quando a pessoa mandou pintar as
+    // superficies, senao o mesmo fundo da lista, para nao aparecer emenda.
+    Color CorLateral()
+    {
+        Color fundo = dark ? Color.FromArgb(25, 25, 25) : SystemColors.Window;
+        if (!Native.DestaqueNasSuperficies()) return fundo;
+
+        Color d = Native.CorDeDestaque();
+        if (d.IsEmpty) return fundo;
+
+        double peso = dark ? 0.45 : 0.25;
+        return Color.FromArgb(
+            (int)(fundo.R + (d.R - fundo.R) * peso),
+            (int)(fundo.G + (d.G - fundo.G) * peso),
+            (int)(fundo.B + (d.B - fundo.B) * peso));
+    }
+
+    static int Ref(Color c) { return c.R | (c.G << 8) | (c.B << 16); }
+
+    IntPtr HwndLista()
+    {
+        if (hwndArvore == IntPtr.Zero) return IntPtr.Zero;
+        IntPtr tv = Native.FindWindowEx(hwndArvore, IntPtr.Zero, "SysTreeView32", null);
+        return tv != IntPtr.Zero ? tv : hwndArvore;
+    }
+
+    void AplicaCorArvore()
+    {
+        if (painelArvore == null) return;
+
+        Color c = CorLateral();
+        painelArvore.BackColor = c;
+        if (divisor != null)
+            divisor.BackColor = dark ? Color.FromArgb(56, 56, 56) : SystemColors.ControlDark;
+
+        IntPtr tv = HwndLista();
+        if (tv == IntPtr.Zero) return;
+
+        double luz = (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255.0;
+        Color texto = luz < 0.55 ? Color.FromArgb(240, 240, 240) : Color.FromArgb(20, 20, 20);
+        try
+        {
+            Native.SendMessage(tv, TVM_SETBKCOLOR, IntPtr.Zero, (IntPtr)Ref(c));
+            Native.SendMessage(tv, TVM_SETTEXTCOLOR, IntPtr.Zero, (IntPtr)Ref(texto));
+            Native.InvalidateRect(tv, IntPtr.Zero, true);
+        }
+        catch { }
+    }
+
+    void Reposiciona()
+    {
+        if (painelArvore != null)
+        {
+            int topo = Topo();
+            int alt = Math.Max(0, ClientSize.Height - topo);
+            if (larguraArvore > ClientSize.Width - 220)
+                larguraArvore = Math.Max(120, ClientSize.Width - 220);
+            painelArvore.Bounds = new Rectangle(0, topo, larguraArvore, alt);
+            divisor.Bounds = new Rectangle(larguraArvore, topo, LarguraDivisor, alt);
+            if (hwndArvore != IntPtr.Zero)
+                Native.MoveWindow(hwndArvore, 0, 0,
+                    painelArvore.ClientSize.Width, painelArvore.ClientSize.Height, true);
+        }
+
+        Rectangle area = AreaConteudo();
+        foreach (Aba a in abas)
+            if (a.Host != null) a.Host.Bounds = area;
+        AjustaBrowser(Atual());
+    }
+
+    // O controle so avisa por interface de 18 metodos; ler a selecao de tempos
+    // em tempos custa quase nada e nao arrisca errar a tabela de metodos.
+    void VigiaArvore(object s, EventArgs e)
+    {
+        if (nstc == null || sincronizando) return;
+
+        bool ehPasta;
+        string sel = SelecaoArvore(out ehPasta);
+        if (string.IsNullOrEmpty(sel) || sel == ultimaSelecao) return;
+        ultimaSelecao = sel;
+
+        Aba a = Atual();
+        if (a == null) return;
+
+        // Arquivo na arvore nao e destino de navegacao: a lista vai para a pasta dele.
+        string destino = ehPasta ? sel : PastaDe(sel);
+        if (string.IsNullOrEmpty(destino)) return;
+        if (string.Equals(destino, a.Caminho, StringComparison.OrdinalIgnoreCase)) return;
+        Navega(a, destino);
+    }
+
+    string PastaDe(string caminho)
+    {
+        IShellItem si = Native.ItemDe(caminho);
+        if (si == null) return null;
+        try
+        {
+            IShellItem pai;
+            si.GetParent(out pai);
+            if (pai == null) return null;
+            string nome;
+            pai.GetDisplayName(SIGDN_DESKTOPABSOLUTEPARSING, out nome);
+            return nome;
+        }
+        catch { return null; }
+    }
+
+    string SelecaoArvore(out bool ehPasta)
+    {
+        ehPasta = true;
+        IShellItemArray arr = null;
+        IShellItem it = null;
+        try
+        {
+            nstc.GetSelectedItems(out arr);
+            if (arr == null) return null;
+            uint n;
+            arr.GetCount(out n);
+            if (n == 0) return null;
+            arr.GetItemAt(0, out it);
+            string nome;
+            it.GetDisplayName(SIGDN_DESKTOPABSOLUTEPARSING, out nome);
+            try
+            {
+                uint atrib;
+                it.GetAttributes(SFGAO_FOLDER, out atrib);
+                ehPasta = (atrib & SFGAO_FOLDER) != 0;
+            }
+            catch { }
+            return nome;
+        }
+        catch { ehPasta = true; return null; }
+        finally
+        {
+            if (it != null) { try { Marshal.ReleaseComObject(it); } catch { } }
+            if (arr != null) { try { Marshal.ReleaseComObject(arr); } catch { } }
+        }
+    }
+
+    // Lista navegou: a arvore acompanha. Fora da raiz nada acontece e a selecao
+    // antiga continua valendo, entao os dois lados nao ficam brigando.
+    void SincronizaArvore(string caminho)
+    {
+        if (nstc == null || string.IsNullOrEmpty(caminho)) return;
+        if (string.Equals(caminho, ultimaSelecao, StringComparison.OrdinalIgnoreCase)) return;
+
+        sincronizando = true;
+        try
+        {
+            IShellItem si = Native.ItemDe(caminho);
+            if (si == null) return;
+
+            // EnsureItemVisible abre os pais ate o item; o estado marca e abre o proprio.
+            try { nstc.EnsureItemVisible(si); } catch { }
+            try
+            {
+                nstc.SetItemState(si, NSTCIS_SELECTED | NSTCIS_EXPANDED,
+                                      NSTCIS_SELECTED | NSTCIS_EXPANDED);
+                ultimaSelecao = caminho;
+            }
+            catch { }
+            try { nstc.EnsureItemVisible(si); } catch { }
+        }
+        catch { }
+        finally { sincronizando = false; }
     }
 
     public static bool Depurar;
@@ -677,6 +1068,7 @@ class FolderWindow : Form, IMessageFilter
         {
             if (!string.IsNullOrEmpty(a.Titulo)) Text = a.Titulo;
             if (txtPath != null && !txtPath.Focused) txtPath.Text = a.Caminho;
+            if (nstc != null) SincronizaArvore(a.Caminho);
         }
         if (faixa != null) faixa.Invalidate();
     }
@@ -696,25 +1088,38 @@ class FolderWindow : Form, IMessageFilter
         }
         Log("tema aplicado");
 
+        if (arvoreRaiz) MontaArvore();
+        Log("arvore ok");
+
         NovaAba(startPath);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (nstc != null && (m.Msg == WM_DWMCOLORIZATIONCOLORCHANGED || m.Msg == WM_THEMECHANGED))
+        {
+            try { BeginInvoke((MethodInvoker)AplicaCorArvore); } catch { }
+        }
+        base.WndProc(ref m);
     }
 
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-        if (abas.Count == 0) return;
-
-        Rectangle area = AreaConteudo();
-        foreach (Aba a in abas)
-        {
-            if (a.Host != null) a.Host.Bounds = area;
-        }
-        AjustaBrowser(Atual());
+        if (abas.Count == 0 && painelArvore == null) return;
+        Reposiciona();
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         Application.RemoveMessageFilter(this);
+        if (relogioArvore != null) { relogioArvore.Stop(); relogioArvore.Dispose(); relogioArvore = null; }
+        if (nstc != null)
+        {
+            try { nstc.RemoveAllRoots(); } catch { }
+            try { Marshal.FinalReleaseComObject(nstc); } catch { }
+            nstc = null;
+        }
         foreach (Aba a in abas)
         {
             try { a.Browser.Unadvise(a.Cookie); } catch { }
@@ -824,6 +1229,8 @@ static class Program
         string icon = null;
         string aumid = null;
         bool tree = true;
+        bool treeRoot = false;
+        bool treeFiles = false;
         bool tabs = true;
         bool maximized = false;
         bool simples = false;
@@ -835,6 +1242,8 @@ static class Program
             else if (args[i] == "--aumid" && i + 1 < args.Length) aumid = args[++i];
             else if (args[i] == "--tree") tree = true;
             else if (args[i] == "--no-tree") tree = false;
+            else if (args[i] == "--tree-root") { tree = true; treeRoot = true; }
+            else if (args[i] == "--tree-files") { tree = true; treeRoot = true; treeFiles = true; }
             else if (args[i] == "--tabs") tabs = true;
             else if (args[i] == "--no-tabs") tabs = false;
             else if (args[i] == "--dark") darkOverride = true;
@@ -848,7 +1257,7 @@ static class Program
         if (string.IsNullOrEmpty(path))
         {
             MessageBox.Show(
-                "Uso: FolderPin.exe \"C:\\pasta\" [--icon arquivo.ico] [--aumid ID] [--no-tree] [--no-tabs] [--simples] [--dark|--light] [--max]",
+                "Uso: FolderPin.exe \"C:\\pasta\" [--icon arquivo.ico] [--aumid ID] [--no-tree|--tree-root [--tree-files]] [--no-tabs] [--simples] [--dark|--light] [--max]",
                 "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return 1;
         }
@@ -895,7 +1304,7 @@ static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         FolderWindow.Log("antes de construir a janela");
-        FolderWindow janela = new FolderWindow(path, icon, tree, dark, maximized, tabs, simples);
+        FolderWindow janela = new FolderWindow(path, icon, tree, dark, maximized, tabs, simples, treeRoot, treeFiles);
         FolderWindow.Log("janela construida, Run");
         Application.Run(janela);
         return 0;
