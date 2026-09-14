@@ -1,0 +1,33 @@
+{
+  "name": "folderpin-linux",
+  "version": "1.2.0",
+  "description": "FolderPin para Linux — pastas em janelas independentes",
+  "main": "main.js",
+  "author": { "name": "Firawynix", "email": "88189816+firawynix@users.noreply.github.com" },
+  "homepage": "https://github.com/firawynix/folderpin",
+  "desktopName": "br.com.firawynix.folderpin.desktop",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "electron .",
+    "build:linux": "electron-builder --linux AppImage deb --x64"
+  },
+  "devDependencies": {
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "br.com.firawynix.folderpin",
+    "productName": "FolderPin",
+    "executableName": "folderpin",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "core.js", "index.html", "renderer.js", "styles.css"],
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "FileManager",
+      "syncDesktopName": true,
+      "icon": "build/icon.png",
+      "artifactName": "FolderPin-${version}-${arch}.${ext}"
+    }
+  }
+}

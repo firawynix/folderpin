@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FolderPin</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+  <header><div class="brand"><b>FP</b><span><strong>FolderPin</strong><small>Linux</small></span></div>
+    <button id="choose">Abrir pasta</button><button id="newFolder">Nova pasta</button>
+    <button id="view" title="Alternar visualização">▦</button></header>
+  <nav><button id="back" title="Voltar">←</button><div id="tabs"></div><button id="newTab" title="Nova aba">＋</button></nav>
+  <section class="location"><button id="up" title="Pasta acima">↑</button><div id="crumbs"></div><input id="search" type="search" placeholder="Buscar nesta pasta"></section>
+  <main><div id="empty" hidden>Nenhum item nesta pasta.</div><div id="items" class="list"></div></main>
+  <footer><span id="status">Carregando…</span><span>Duplo clique abre · botão direito mostra ações</span></footer>
+  <menu id="menu"><button data-action="open">Abrir</button><button data-action="show">Mostrar no gerenciador</button><button data-action="rename">Renomear</button><button data-action="trash" class="danger">Mover para a lixeira</button></menu>
+  <script src="renderer.js"></script>
+</body></html>
