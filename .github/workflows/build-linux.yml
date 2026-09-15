@@ -36,8 +36,8 @@ jobs:
       - name: Guardar pacotes
         uses: actions/upload-artifact@v4
         with:
-          name: Firaw-TaskBar-Linux-1.3.0
+          name: Firaw-TaskBar-Linux-1.3.1
           path: |
-            linux/dist/Firaw-TaskBar-1.3.0-x86_64.AppImage
-            linux/dist/Firaw-TaskBar-1.3.0-amd64.deb
+            linux/dist/Firaw-TaskBar-1.3.1-x86_64.AppImage
+            linux/dist/Firaw-TaskBar-1.3.1-amd64.deb
           if-no-files-found: error

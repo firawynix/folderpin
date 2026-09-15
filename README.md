@@ -31,8 +31,8 @@ O Firaw - TaskBar abre a pasta numa janela dele, hospedando o **`IExplorerBrowse
 | [**Firaw-TaskBar-Setup.exe**](https://github.com/firawynix/folderpin/releases/latest/download/Firaw-TaskBar-Setup.exe) | **Comece por aqui.** Instalador completo: verifica o sistema, instala, cria atalhos e registra desinstalação |
 | [Firaw-TaskBar-Studio.exe](https://github.com/firawynix/folderpin/releases/latest/download/Firaw-TaskBar-Studio.exe) | Só o configurador, sem instalar (portátil) |
 | [Firaw-TaskBar.exe](https://github.com/firawynix/folderpin/releases/latest/download/Firaw-TaskBar.exe) | Só o motor da janela, para usar direto na linha de comando |
-| [Firaw-TaskBar-1.3.0-x86_64.AppImage](https://github.com/firawynix/folderpin/releases/latest/download/Firaw-TaskBar-1.3.0-x86_64.AppImage) | Versão portátil para Linux x64 |
-| [Firaw-TaskBar-1.3.0-amd64.deb](https://github.com/firawynix/folderpin/releases/latest/download/Firaw-TaskBar-1.3.0-amd64.deb) | Pacote para Ubuntu, Debian e derivados x64 |
+| [Firaw-TaskBar-1.3.1-x86_64.AppImage](https://github.com/firawynix/folderpin/releases/latest/download/Firaw-TaskBar-1.3.1-x86_64.AppImage) | Versão portátil para Linux x64 |
+| [Firaw-TaskBar-1.3.1-amd64.deb](https://github.com/firawynix/folderpin/releases/latest/download/Firaw-TaskBar-1.3.1-amd64.deb) | Pacote para Ubuntu, Debian e derivados x64 |
 
 Sem assinatura de código: o SmartScreen avisa na primeira vez. **Mais informações › Executar assim mesmo**.
 

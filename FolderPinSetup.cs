@@ -11,11 +11,28 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("Firaw - TaskBar Setup")]
 [assembly: AssemblyProduct("Firaw - TaskBar")]
 [assembly: AssemblyCompany("Firawynix")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.3.1.0")]
+[assembly: AssemblyFileVersion("1.3.1.0")]
 
 static class Amb
 {
+    [DllImport("shell32.dll")]
+    public static extern void SHChangeNotify(uint evento, uint flags, IntPtr item1, IntPtr item2);
+
+    public const uint SHCNE_ASSOCCHANGED = 0x08000000;
+    public const uint SHCNF_IDLIST = 0x0000;
+
+    public static Icon IconeDoAplicativo()
+    {
+        try
+        {
+            using (Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream("FirawTaskBarIcon"))
+            using (Icon original = s == null ? null : new Icon(s))
+                return original == null ? null : (Icon)original.Clone();
+        }
+        catch { return null; }
+    }
+
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
@@ -27,7 +44,7 @@ static class Amb
 
     public const string Produto = "Firaw - TaskBar";
     public const string ProdutoAntigo = "FolderPin";
-    public const string Versao = "1.3.0";
+    public const string Versao = "1.3.1";
     public const string ChaveDesinstalar =
         @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Firaw TaskBar";
     public const string ChaveDesinstalarAntiga =
@@ -189,6 +206,7 @@ class Instalador : Form
         BackColor = escuro ? Bg : SystemColors.Control;
         ForeColor = escuro ? Fg : SystemColors.ControlText;
         Font = new Font("Segoe UI", 9f);
+        Icon = Amb.IconeDoAplicativo();
 
         Monta();
         Checar();
@@ -484,6 +502,7 @@ class Instalador : Form
             k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             k.Close();
             try { Registry.CurrentUser.DeleteSubKeyTree(Amb.ChaveDesinstalarAntiga, false); } catch { }
+            try { Amb.SHChangeNotify(Amb.SHCNE_ASSOCCHANGED, Amb.SHCNF_IDLIST, IntPtr.Zero, IntPtr.Zero); } catch { }
 
             lblStatus.Text = "Instalado em " + local;
 

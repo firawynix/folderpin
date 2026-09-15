@@ -9,8 +9,8 @@ using Microsoft.Win32;
 [assembly: System.Reflection.AssemblyTitle("Firaw - TaskBar")]
 [assembly: System.Reflection.AssemblyProduct("Firaw - TaskBar")]
 [assembly: System.Reflection.AssemblyCompany("Firawynix")]
-[assembly: System.Reflection.AssemblyVersion("1.3.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.3.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.3.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.3.1.0")]
 
 [StructLayout(LayoutKind.Sequential)]
 struct RECT { public int left, top, right, bottom; }
@@ -32,6 +32,18 @@ struct MSG
 
 static class Native
 {
+    public static Icon IconeDoAplicativo()
+    {
+        try
+        {
+            using (System.IO.Stream s = System.Reflection.Assembly.GetExecutingAssembly()
+                .GetManifestResourceStream("FirawTaskBarIcon"))
+            using (Icon original = s == null ? null : new Icon(s))
+                return original == null ? null : (Icon)original.Clone();
+        }
+        catch { return null; }
+    }
+
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
     public static extern void SHParseDisplayName(
         [MarshalAs(UnmanagedType.LPWStr)] string name, IntPtr bindCtx,
@@ -510,6 +522,7 @@ class FolderWindow : Form, IMessageFilter
         Height = 700;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Bg;
+        Icon = Native.IconeDoAplicativo();
         Log("ctor: janela dimensionada");
 
         if (!string.IsNullOrEmpty(iconPath))

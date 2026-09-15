@@ -11,11 +11,22 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("Firaw - TaskBar Studio")]
 [assembly: AssemblyProduct("Firaw - TaskBar")]
 [assembly: AssemblyCompany("Firawynix")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.3.1.0")]
+[assembly: AssemblyFileVersion("1.3.1.0")]
 
 static class Sys
 {
+    public static Icon IconeDoAplicativo()
+    {
+        try
+        {
+            using (Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream("FirawTaskBarIcon"))
+            using (Icon original = s == null ? null : new Icon(s))
+                return original == null ? null : (Icon)original.Clone();
+        }
+        catch { return null; }
+    }
+
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
@@ -234,6 +245,7 @@ class Studio : Form
         BackColor = dark ? Bg : SystemColors.Control;
         ForeColor = dark ? Fg : SystemColors.ControlText;
         Font = new Font("Segoe UI", 9f);
+        Icon = Sys.IconeDoAplicativo();
 
         Monta();
         Extrai();
