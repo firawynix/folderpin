@@ -8,6 +8,12 @@ using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
+[assembly: AssemblyTitle("Firaw - TaskBar Studio")]
+[assembly: AssemblyProduct("Firaw - TaskBar")]
+[assembly: AssemblyCompany("Firawynix")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
+
 static class Sys
 {
     [DllImport("dwmapi.dll")]
@@ -160,25 +166,36 @@ class Pin
 
 class Studio : Form
 {
+    const string Produto = "Firaw - TaskBar";
+    const string ProdutoAntigo = "FolderPin";
+    const string NomeMotor = "Firaw - TaskBar.exe";
+    const string ChaveInstalacao = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Firaw TaskBar";
+    const string ChaveInstalacaoAntiga = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\FolderPin";
     static readonly Color Bg = Color.FromArgb(32, 32, 32);
     static readonly Color Field = Color.FromArgb(45, 45, 45);
     static readonly Color Fg = Color.FromArgb(235, 235, 235);
     static readonly Color Accent = Color.FromArgb(0, 120, 212);
 
     readonly bool dark = Sys.PrefersDark();
-    readonly string instalacao = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FolderPin");
+    readonly string instalacao;
 
     TextBox txtPasta, txtNome, txtIcone;
     CheckBox chkArvore, chkArvoreRaiz, chkArvoreArquivos, chkAbas, chkMax, chkSimples;
     ComboBox cmbTema;
+    ComboBox cmbView;
+
+    // Mesma ordem dos itens do cmbView; null = "lembrar", que nao vira argumento.
+    static readonly string[] SlugsView = {
+        null, "detalhes", "lista", "blocos", "conteudo",
+        "icones-pequenos", "icones-medios", "icones-grandes", "icones-extra", "auto"
+    };
     PictureBox picIcone;
     ListBox lst;
     Label lblStatus;
     Button btnCriar, btnCancelar;
     Pin emEdicao;
 
-    string BaseExe { get { return Path.Combine(instalacao, "FolderPin.exe"); } }
+    string BaseExe { get { return Path.Combine(instalacao, NomeMotor); } }
     string PastaIcones { get { return Path.Combine(instalacao, "icones"); } }
     string Mesa { get { return Environment.GetFolderPath(Environment.SpecialFolder.Desktop); } }
     string BarraFixados
@@ -190,9 +207,27 @@ class Studio : Form
         }
     }
 
+    static string LocalInstalado()
+    {
+        foreach (string chave in new string[] { ChaveInstalacao, ChaveInstalacaoAntiga })
+        {
+            try
+            {
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(chave))
+                {
+                    string local = k == null ? null : k.GetValue("InstallLocation", null) as string;
+                    if (!string.IsNullOrEmpty(local) && Directory.Exists(local)) return local;
+                }
+            }
+            catch { }
+        }
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Produto);
+    }
+
     public Studio()
     {
-        Text = "FolderPin - atalhos de pasta na barra de tarefas";
+        instalacao = LocalInstalado();
+        Text = Produto + " - atalhos de pasta na barra de tarefas";
         ClientSize = new Size(760, 646);
         MinimumSize = new Size(700, 586);
         StartPosition = FormStartPosition.CenterScreen;
@@ -362,6 +397,24 @@ class Studio : Form
         cmbTema.Items.AddRange(new object[] { "Seguir o Windows", "Sempre escuro", "Sempre claro" });
         cmbTema.SelectedIndex = 0;
         Controls.Add(cmbTema);
+
+        Controls.Add(Rotulo("Exibicao:", 410, y + 28));
+        cmbView = new ComboBox();
+        cmbView.Location = new Point(476, y + 24);
+        cmbView.Width = 190;
+        cmbView.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbView.FlatStyle = FlatStyle.Flat;
+        cmbView.BackColor = dark ? Field : SystemColors.Window;
+        cmbView.ForeColor = dark ? Fg : SystemColors.WindowText;
+        cmbView.Items.AddRange(new object[] {
+            "Lembrar o que eu escolher", "Detalhes", "Lista", "Blocos", "Conteudo",
+            "Icones pequenos", "Icones medios", "Icones grandes", "Icones extra grandes",
+            "Automatico (pelo tipo)" });
+        cmbView.SelectedIndex = 0;
+        Controls.Add(cmbView);
+        new ToolTip().SetToolTip(cmbView,
+            "Lembrar: voce troca a exibicao na propria janela (botao direito > Exibir) e ela volta assim, " +
+            "pasta por pasta. Escolhendo um modo, ele vale para toda pasta que a janela abrir.");
         y += 92;
 
         btnCriar = Botao("Criar atalho", 16, y, 160, Cria, true);
@@ -416,7 +469,7 @@ class Studio : Form
             Directory.CreateDirectory(instalacao);
             Directory.CreateDirectory(PastaIcones);
 
-            using (Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream("FolderPin.exe"))
+            using (Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream(NomeMotor))
             {
                 if (s == null) return;
                 byte[] buf = new byte[s.Length];
@@ -440,7 +493,7 @@ class Studio : Form
         catch (Exception ex)
         {
             MessageBox.Show(this, "Nao consegui preparar a instalacao:" + Environment.NewLine + ex.Message,
-                "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Produto, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -722,6 +775,8 @@ class Studio : Form
         if (chkMax.Checked) args.Append(" --max");
         if (cmbTema.SelectedIndex == 1) args.Append(" --dark");
         else if (cmbTema.SelectedIndex == 2) args.Append(" --light");
+        int iv = cmbView.SelectedIndex;
+        if (iv > 0 && iv < SlugsView.Length) args.Append(" --view ").Append(SlugsView[iv]);
         return args.ToString();
     }
 
@@ -735,18 +790,18 @@ class Studio : Form
         if (!Sys.LocalValido(pasta))
         {
             MessageBox.Show(this, "Escolha uma pasta que exista, ou um local do Windows (botao Locais...).",
-                "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Produto, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         if (string.IsNullOrEmpty(txtNome.Text.Trim()))
         {
-            MessageBox.Show(this, "De um nome ao atalho.", "FolderPin",
+            MessageBox.Show(this, "De um nome ao atalho.", Produto,
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         if (!File.Exists(BaseExe))
         {
-            MessageBox.Show(this, "O programa base nao foi instalado.", "FolderPin",
+            MessageBox.Show(this, "O programa base nao foi instalado.", Produto,
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
@@ -756,7 +811,7 @@ class Studio : Form
 
         if (File.Exists(exe) || File.Exists(lnk))
         {
-            if (MessageBox.Show(this, "Ja existe um atalho com esse nome. Substituir?", "FolderPin",
+            if (MessageBox.Show(this, "Ja existe um atalho com esse nome. Substituir?", Produto,
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         }
 
@@ -767,7 +822,7 @@ class Studio : Form
         catch (IOException)
         {
             MessageBox.Show(this, "Esse atalho esta aberto agora. Feche a janela dele e tente de novo.",
-                "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Produto, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -785,7 +840,7 @@ class Studio : Form
             "Atalho criado na area de trabalho." + Environment.NewLine + Environment.NewLine +
             "Para fixar na barra: botao direito no atalho > Mostrar mais opcoes > Fixar na barra de tarefas." +
             Environment.NewLine + Environment.NewLine + "Abrir a area de trabalho no atalho agora?",
-            "FolderPin", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+            Produto, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
         {
             Selecionar(lnk);
         }
@@ -805,7 +860,7 @@ class Studio : Form
         ta.InvokeMember("Save", BindingFlags.InvokeMethod, null, atalho, null);
     }
 
-    public const string Etiqueta = "FolderPin: ";
+    public const string Etiqueta = "Firaw - TaskBar: ";
 
     static void LeAtalho(string lnk, out string alvo, out string args, out string desc)
     {
@@ -846,10 +901,13 @@ class Studio : Form
 
                 bool naInstalacao = alvo.StartsWith(instalacao, StringComparison.OrdinalIgnoreCase);
                 bool etiquetado = !string.IsNullOrEmpty(desc) &&
-                    desc.StartsWith("FolderPin", StringComparison.OrdinalIgnoreCase);
+                    (desc.StartsWith(Produto, StringComparison.OrdinalIgnoreCase) ||
+                     desc.StartsWith(ProdutoAntigo, StringComparison.OrdinalIgnoreCase));
                 if (!naInstalacao && !etiquetado) continue;
-                if (alvo.EndsWith("FolderPin.exe", StringComparison.OrdinalIgnoreCase)) continue;
-                if (alvo.EndsWith("FolderPin Studio.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                if (alvo.EndsWith(NomeMotor, StringComparison.OrdinalIgnoreCase) ||
+                    alvo.EndsWith("FolderPin.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                if (alvo.EndsWith("Firaw - TaskBar Studio.exe", StringComparison.OrdinalIgnoreCase) ||
+                    alvo.EndsWith("FolderPin Studio.exe", StringComparison.OrdinalIgnoreCase)) continue;
 
                 string chave = Path.GetFileNameWithoutExtension(alvo);
                 Pin p;
@@ -866,7 +924,7 @@ class Studio : Form
         }
 
         foreach (Pin p in achados.Values) lst.Items.Add(p);
-        lblStatus.Text = achados.Count + " atalho(s) do FolderPin encontrado(s). Instalacao: " + instalacao;
+        lblStatus.Text = achados.Count + " atalho(s) do " + Produto + " encontrado(s). Instalacao: " + instalacao;
     }
 
     static string PrimeiroArg(string args)
@@ -887,7 +945,7 @@ class Studio : Form
         Pin p = lst.SelectedItem as Pin;
         if (p == null)
         {
-            MessageBox.Show(this, "Escolha um atalho na lista.", "FolderPin",
+            MessageBox.Show(this, "Escolha um atalho na lista.", Produto,
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         return p;
@@ -911,7 +969,7 @@ class Studio : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, Produto, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -925,7 +983,7 @@ class Studio : Form
             aviso += Environment.NewLine + Environment.NewLine +
                 "Ele esta fixado na barra. Desafixe primeiro (botao direito no icone > Desafixar), senao sobra um icone morto.";
 
-        if (MessageBox.Show(this, aviso, "FolderPin", MessageBoxButtons.YesNo,
+        if (MessageBox.Show(this, aviso, Produto, MessageBoxButtons.YesNo,
             MessageBoxIcon.Warning) != DialogResult.Yes) return;
 
         try
@@ -939,7 +997,7 @@ class Studio : Form
         {
             MessageBox.Show(this, "Nao deu para remover tudo: " + ex.Message + Environment.NewLine +
                 "Se a janela dele estiver aberta, feche e tente de novo.",
-                "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Produto, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         Recarrega();
     }
@@ -956,6 +1014,22 @@ class Studio : Form
         return args.Substring(aspa + 1, fim - aspa - 1);
     }
 
+    // "--view icones-grandes" -> indice do cmbView (0 quando nao tem argumento ou nao reconhece)
+    static int IndiceView(string args)
+    {
+        if (string.IsNullOrEmpty(args)) return 0;
+        int i = args.IndexOf("--view", StringComparison.OrdinalIgnoreCase);
+        if (i < 0) return 0;
+        i += 6;
+        while (i < args.Length && args[i] == ' ') i++;
+        int fim = i;
+        while (fim < args.Length && args[fim] != ' ') fim++;
+        string slug = args.Substring(i, fim - i).Trim('"');
+        for (int k = 1; k < SlugsView.Length; k++)
+            if (string.Equals(slug, SlugsView[k], StringComparison.OrdinalIgnoreCase)) return k;
+        return 0;
+    }
+
     void CarregaOpcoes(string args)
     {
         if (args == null) args = "";
@@ -968,6 +1042,8 @@ class Studio : Form
         chkArvoreArquivos.Enabled = chkArvoreRaiz.Enabled && chkArvoreRaiz.Checked;
         chkAbas.Checked = args.IndexOf("--no-tabs", StringComparison.OrdinalIgnoreCase) < 0;
         chkMax.Checked = args.IndexOf("--max", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        cmbView.SelectedIndex = IndiceView(args);
 
         if (args.IndexOf("--dark", StringComparison.OrdinalIgnoreCase) >= 0) cmbTema.SelectedIndex = 1;
         else if (args.IndexOf("--light", StringComparison.OrdinalIgnoreCase) >= 0) cmbTema.SelectedIndex = 2;
@@ -991,7 +1067,7 @@ class Studio : Form
         try { LeAtalho(lnk, out alvo, out args, out desc); }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Nao consegui ler o atalho: " + ex.Message, "FolderPin",
+            MessageBox.Show(this, "Nao consegui ler o atalho: " + ex.Message, Produto,
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
@@ -1040,7 +1116,7 @@ class Studio : Form
         if (!Sys.LocalValido(pasta))
         {
             MessageBox.Show(this, "Escolha uma pasta que exista, ou um local do Windows (botao Locais...).",
-                "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Produto, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -1076,7 +1152,7 @@ class Studio : Form
                 "O programa dele estava aberto, entao nao consegui atualizar a versao dele - as opcoes foram salvas do mesmo jeito.";
 
         SaiEdicao();
-        MessageBox.Show(this, aviso, "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(this, aviso, Produto, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     void Ajuda(object s, EventArgs e)
@@ -1108,5 +1184,3 @@ class Studio : Form
         Application.Run(new Studio());
     }
 }
-
-

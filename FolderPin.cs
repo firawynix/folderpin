@@ -6,11 +6,29 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
+[assembly: System.Reflection.AssemblyTitle("Firaw - TaskBar")]
+[assembly: System.Reflection.AssemblyProduct("Firaw - TaskBar")]
+[assembly: System.Reflection.AssemblyCompany("Firawynix")]
+[assembly: System.Reflection.AssemblyVersion("1.3.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.3.0.0")]
+
 [StructLayout(LayoutKind.Sequential)]
 struct RECT { public int left, top, right, bottom; }
 
 [StructLayout(LayoutKind.Sequential)]
 struct FOLDERSETTINGS { public uint ViewMode; public uint fFlags; }
+
+[StructLayout(LayoutKind.Sequential)]
+struct MSG
+{
+    public IntPtr hwnd;
+    public uint message;
+    public IntPtr wParam;
+    public IntPtr lParam;
+    public uint time;
+    public Point pt;
+    public uint lPrivate;
+}
 
 static class Native
 {
@@ -42,6 +60,29 @@ static class Native
 
     [DllImport("user32.dll")]
     public static extern bool InvalidateRect(IntPtr hwnd, IntPtr rect, bool apaga);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetFocus();
+
+    [DllImport("user32.dll")]
+    public static extern bool IsChild(IntPtr pai, IntPtr filho);
+
+    [DllImport("user32.dll")]
+    public static extern int GetMessageTime();
+
+    [DllImport("user32.dll")]
+    public static extern int GetMessagePos();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder nome, int maximo);
+
+    public static bool EhCampoDeTexto(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return false;
+        System.Text.StringBuilder nome = new System.Text.StringBuilder(128);
+        return GetClassName(hwnd, nome, nome.Capacity) > 0 &&
+            nome.ToString().IndexOf("edit", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
 
     // Windows guarda o destaque em ABGR; o painel de controle chama de "cor de destaque".
     public static Color CorDeDestaque()
@@ -223,6 +264,50 @@ interface IShellView
     void GetItemObject(uint uItem, ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object ppv);
 }
 
+// Modo de exibicao com tamanho de icone - o mesmo que o menu "Exibir" do Explorador aplica.
+// A ordem dos metodos e a da vtable do shell: trocar a ordem chama outra funcao e derruba o processo.
+[ComImport, Guid("1AF3A467-214F-4298-908E-06B03E0B39F9"),
+ InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IFolderView2
+{
+    // IFolderView
+    void GetCurrentViewMode(out uint pViewMode);
+    void SetCurrentViewMode(uint ViewMode);
+    void GetFolder(ref Guid riid, out IntPtr ppv);
+    void Item(int iItemIndex, out IntPtr ppidl);
+    void ItemCount(uint uFlags, out int pcItems);
+    void Items(uint uFlags, ref Guid riid, out IntPtr ppv);
+    void GetSelectionMarkedItem(out int piItem);
+    void GetFocusedItem(out int piItem);
+    void GetItemPosition(IntPtr pidl, IntPtr ppt);
+    void GetSpacing(IntPtr ppt);
+    void GetDefaultSpacing(IntPtr ppt);
+    [PreserveSig] int GetAutoArrange();
+    void SelectItem(int iItem, uint dwFlags);
+    void SelectAndPositionItems(uint cidl, IntPtr apidl, IntPtr apt, uint dwFlags);
+    // IFolderView2
+    void SetGroupBy(IntPtr key, [MarshalAs(UnmanagedType.Bool)] bool fAscending);
+    void GetGroupBy(IntPtr pkey, [MarshalAs(UnmanagedType.Bool)] out bool pfAscending);
+    void SetViewProperty(IntPtr pidl, IntPtr propkey, IntPtr propvar);
+    void GetViewProperty(IntPtr pidl, IntPtr propkey, IntPtr ppropvar);
+    void SetTileViewProperties(IntPtr pidl, [MarshalAs(UnmanagedType.LPWStr)] string pszPropList);
+    void SetExtendedTileViewProperties(IntPtr pidl, [MarshalAs(UnmanagedType.LPWStr)] string pszPropList);
+    void SetText(int iType, [MarshalAs(UnmanagedType.LPWStr)] string pwszText);
+    void SetCurrentFolderFlags(uint dwMask, uint dwFlags);
+    void GetCurrentFolderFlags(out uint pdwFlags);
+    void GetSortColumnCount(out int pcColumns);
+    void SetSortColumns(IntPtr rgSortColumns, int cColumns);
+    void GetSortColumns(IntPtr rgSortColumns, int cColumns);
+    void GetItem(int iItem, ref Guid riid, out IntPtr ppv);
+    void GetVisibleItem(int iStart, [MarshalAs(UnmanagedType.Bool)] bool fPrevious, out int piItem);
+    void GetSelectedItem(int iStart, out int piItem);
+    void GetSelection([MarshalAs(UnmanagedType.Bool)] bool fNoneImpliesFolder, out IShellItemArray ppsia);
+    void GetSelectionState(IntPtr pidl, out uint pdwFlags);
+    void InvokeVerbOnSelection([MarshalAs(UnmanagedType.LPWStr)] string pszVerb);
+    void SetViewModeAndIconSize(int uViewMode, int iImageSize);
+    void GetViewModeAndIconSize(out int puViewMode, out int piImageSize);
+}
+
 [ComImport, Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"),
  InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IShellItem
@@ -286,9 +371,13 @@ interface INameSpaceTreeControl
 class BrowserEvents : IExplorerBrowserEvents
 {
     readonly Action<IntPtr> onDone;
-    public BrowserEvents(Action<IntPtr> cb) { onDone = cb; }
+    readonly Action<object> onView;
+    public BrowserEvents(Action<IntPtr> cb) : this(cb, null) { }
+    public BrowserEvents(Action<IntPtr> cb, Action<object> viewCb) { onDone = cb; onView = viewCb; }
     public void OnNavigationPending(IntPtr pidl) { }
-    public void OnViewCreated(object psv) { }
+    // A view nasce aqui, ainda vazia: e o momento de fixar o modo de exibicao.
+    // Fazer isso depois, com a lista ja montada, deixa cabecalho velho na tela.
+    public void OnViewCreated(object psv) { if (onView != null) onView(psv); }
     public void OnNavigationComplete(IntPtr pidl) { onDone(pidl); }
     public void OnNavigationFailed(IntPtr pidl) { }
 }
@@ -316,6 +405,7 @@ class Faixa : Panel
 
 class FolderWindow : Form, IMessageFilter
 {
+    const string Produto = "Firaw - TaskBar";
     const uint EBO_SHOWFRAMES = 0x2;
     const uint SHCONTF_FOLDERS = 0x20;
     const uint SHCONTF_NONFOLDERS = 0x40;
@@ -337,6 +427,17 @@ class FolderWindow : Form, IMessageFilter
     const int WM_THEMECHANGED = 0x31A;
     const uint EBO_NOBORDER = 0x40;
     const uint FVM_DETAILS = 4;
+    const uint FVM_ICON = 1;
+    const uint FVM_SMALLICON = 2;
+    const uint FVM_LIST = 3;
+    const uint FVM_TILE = 6;
+    const uint FVM_CONTENT = 8;
+    const uint FVM_AUTO = 0xFFFFFFFF;
+    // Sem isto o DefView hospedado mantem o cabecalho de colunas ate em modo de icones.
+    const uint FWF_NOHEADERINALLVIEWS = 0x1000000;
+    // Nome do saco de propriedades onde o shell guarda o estado da view de cada pasta.
+    // Sem ele o IExplorerBrowser nao persiste nada: toda janela nasce igual.
+    const string SacoDeEstado = "FolderPin";
     const uint SBSP_PARENT = 0x2000;
     const uint SBSP_NAVIGATEBACK = 0x4000;
     const uint SBSP_NAVIGATEFORWARD = 0x8000;
@@ -382,12 +483,17 @@ class FolderWindow : Form, IMessageFilter
     Color Hover { get { return dark ? HoverDark : SystemColors.ControlLight; } }
 
     readonly bool simples;
+    // 0 = lembrar o que a pessoa escolher (persiste); outro valor = modo fixo, reaplicado a cada pasta
+    readonly int viewMode;
+    readonly int viewIcone;
 
     public FolderWindow(string path, string iconPath, bool showTree, bool useDark, bool maximized,
-        bool tabs, bool janelaSimples, bool soEstaPasta, bool comArquivos)
+        bool tabs, bool janelaSimples, bool soEstaPasta, bool comArquivos, int modoView, int tamIcone)
     {
         startPath = path;
         simples = janelaSimples;
+        viewMode = modoView;
+        viewIcone = tamIcone;
         // arvore propria: raiz na pasta escolhida, sem o resto do computador em cima
         arvoreRaiz = showTree && soEstaPasta && !simples;
         arvoreArquivos = arvoreRaiz && comArquivos;
@@ -398,7 +504,7 @@ class FolderWindow : Form, IMessageFilter
 
         Log("ctor: campos ok");
         bool localDoShell = path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) || path.StartsWith("::");
-        Text = localDoShell ? "FolderPin"
+        Text = localDoShell ? Produto
              : System.IO.Path.GetFileName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar));
         Width = 1100;
         Height = 700;
@@ -424,7 +530,8 @@ class FolderWindow : Form, IMessageFilter
         fonteGlifo = new Font(gf, 8f);
 
         Log("ctor: fontes ok");
-        if (!simples) MontaBarra();     // janela crua: so a lista, nada de barra nem abas
+        if (simples) MontaBarraSimples();
+        else MontaBarra();
         Log("ctor: barra ok");
         if (comAbas) MontaFaixa();
         Log("ctor: faixa ok");
@@ -517,6 +624,27 @@ class FolderWindow : Form, IMessageFilter
 
         bar.Resize += delegate { txtPath.Width = Math.Max(120, bar.Width - 140); };
         txtPath.Width = Math.Max(120, ClientSize.Width - 140);
+    }
+
+    // O modo simples continua limpo, mas nao deixa a pessoa presa numa subpasta:
+    // exibe somente o historico, exatamente como pedido para este modo.
+    void MontaBarraSimples()
+    {
+        bar = new Panel();
+        bar.Dock = DockStyle.Top;
+        bar.Height = 40;
+        bar.BackColor = Bg;
+
+        btnBack = MakeButton(G("\uE72B", "\u2190"), "Voltar (Alt+Esquerda)",
+            delegate { Go(SBSP_NAVIGATEBACK); });
+        btnFwd = MakeButton(G("\uE72A", "\u2192"), "Avancar (Alt+Direita)",
+            delegate { Go(SBSP_NAVIGATEFORWARD); });
+        btnBack.Location = new Point(6, 5);
+        btnFwd.Location = new Point(46, 5);
+
+        bar.Controls.Add(btnBack);
+        bar.Controls.Add(btnFwd);
+        Controls.Add(bar);
     }
 
     // ---------- faixa de abas ----------
@@ -918,7 +1046,7 @@ class FolderWindow : Form, IMessageFilter
         try
         {
             System.IO.File.AppendAllText(
-                System.IO.Path.Combine(System.IO.Path.GetTempPath(), "folderpin.log"),
+                System.IO.Path.Combine(System.IO.Path.GetTempPath(), "firaw-taskbar.log"),
                 DateTime.Now.ToString("HH:mm:ss.fff") + "  " + s + Environment.NewLine);
         }
         catch { }
@@ -948,17 +1076,27 @@ class FolderWindow : Form, IMessageFilter
         a.Browser.SetOptions(EBO_NOBORDER | (tree ? EBO_SHOWFRAMES : 0));
         Log("SetOptions ok");
 
+        // Antes do Initialize: dai o browser le o estado salvo desta pasta e o grava de volta.
+        if (viewMode == 0)
+        {
+            try { a.Browser.SetPropertyBag(SacoDeEstado); Log("SetPropertyBag ok"); }
+            catch (Exception ex) { Log("SetPropertyBag falhou: " + ex.Message); }
+        }
+
         RECT rc = new RECT();
         rc.left = 0; rc.top = 0;
         rc.right = a.Host.ClientSize.Width; rc.bottom = a.Host.ClientSize.Height;
         FOLDERSETTINGS fs = new FOLDERSETTINGS();
-        fs.ViewMode = FVM_DETAILS;
-        fs.fFlags = 0;
+        // No modo "lembrar" isto e so o ponto de partida de quem ainda nao tem estado salvo.
+        fs.ViewMode = viewMode == 0 ? FVM_DETAILS : unchecked((uint)viewMode);
+        fs.fFlags = FWF_NOHEADERINALLVIEWS;
         a.Browser.Initialize(a.Host.Handle, ref rc, ref fs);
         Log("Initialize ok");
 
         Aba capturada = a;
-        a.Eventos = new BrowserEvents(delegate (IntPtr pidl) { Navegou(capturada, pidl); });
+        a.Eventos = new BrowserEvents(
+            delegate (IntPtr pidl) { Navegou(capturada, pidl); },
+            delegate (object psv) { AplicaView(capturada, psv); });
         a.Browser.Advise(a.Eventos, out a.Cookie);
         Log("Advise ok cookie=" + a.Cookie);
 
@@ -993,6 +1131,7 @@ class FolderWindow : Form, IMessageFilter
         if (abas.Count == 1) { Close(); return; }
 
         Aba a = abas[i];
+        SalvaEstado(a);
         try { a.Browser.Unadvise(a.Cookie); } catch { }
         try { a.Browser.Destroy(); } catch { }
         try { Marshal.FinalReleaseComObject(a.Browser); } catch { }
@@ -1024,7 +1163,7 @@ class FolderWindow : Form, IMessageFilter
         }
         catch
         {
-            MessageBox.Show(this, "Caminho invalido:" + Environment.NewLine + caminho, "FolderPin",
+            MessageBox.Show(this, "Caminho invalido:" + Environment.NewLine + caminho, Produto,
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         finally
@@ -1122,6 +1261,7 @@ class FolderWindow : Form, IMessageFilter
         }
         foreach (Aba a in abas)
         {
+            SalvaEstado(a);
             try { a.Browser.Unadvise(a.Cookie); } catch { }
             try { a.Browser.Destroy(); } catch { }
             try { Marshal.FinalReleaseComObject(a.Browser); } catch { }
@@ -1130,11 +1270,113 @@ class FolderWindow : Form, IMessageFilter
         base.OnFormClosed(e);
     }
 
+    // "detalhes", "icones-grandes", ... -> modo do shell + tamanho de icone.
+    // Devolve false para "lembrar" (nenhum modo fixo).
+    public static bool ParseView(string s, out int modo, out int tam)
+    {
+        modo = 0; tam = 0;
+        if (string.IsNullOrEmpty(s)) return false;
+        switch (s.Trim().ToLowerInvariant())
+        {
+            case "detalhes": case "details": modo = (int)FVM_DETAILS; tam = 16; return true;
+            case "lista": case "list": modo = (int)FVM_LIST; tam = 16; return true;
+            case "blocos": case "tile": case "tiles": modo = (int)FVM_TILE; tam = 48; return true;
+            case "conteudo": case "content": modo = (int)FVM_CONTENT; tam = 32; return true;
+            case "icones-pequenos": case "small": modo = (int)FVM_SMALLICON; tam = 16; return true;
+            case "icones-medios": case "medium": modo = (int)FVM_ICON; tam = 48; return true;
+            case "icones-grandes": case "large": modo = (int)FVM_ICON; tam = 96; return true;
+            case "icones-extra": case "extralarge": modo = (int)FVM_ICON; tam = 256; return true;
+            case "auto": modo = unchecked((int)FVM_AUTO); tam = -1; return true;
+            default: return false;
+        }
+    }
+
+    // Modo fixo: vale para toda pasta que a janela abrir, entao e reaplicado
+    // em cada view nova - senao a pasta seguinte volta ao padrao dela.
+    void AplicaView(Aba a, object psv)
+    {
+        if (a == null || a.Browser == null) return;
+        try
+        {
+            IFolderView2 fv = psv as IFolderView2;
+            if (fv != null)
+            {
+                // Cabecalho de colunas so no modo Detalhes, como no Explorador.
+                try { fv.SetCurrentFolderFlags(FWF_NOHEADERINALLVIEWS, FWF_NOHEADERINALLVIEWS); }
+                catch (Exception ex) { Log("SetCurrentFolderFlags falhou: " + ex.Message); }
+
+                if (viewMode == 0) return;
+                // O tamanho do icone so existe aqui: FOLDERSETTINGS sozinho nao separa
+                // "icones grandes" de "icones medios" - os dois sao FVM_ICON.
+                fv.SetViewModeAndIconSize(viewMode, viewIcone);
+                return;
+            }
+        }
+        catch (Exception ex) { Log("SetViewModeAndIconSize falhou: " + ex.Message); }
+
+        if (viewMode == 0) return;
+
+        try
+        {
+            FOLDERSETTINGS fs = new FOLDERSETTINGS();
+            fs.ViewMode = unchecked((uint)viewMode);
+            fs.fFlags = 0;
+            a.Browser.SetFolderSettings(ref fs);
+        }
+        catch (Exception ex) { Log("SetFolderSettings falhou: " + ex.Message); }
+    }
+
+    // Ctrl+Shift+1..8, na ordem do menu "Exibir" do Explorador. O DefView hospedado
+    // nao trata esses atalhos sozinho: quem os trata no Explorador e o frame dele.
+    static readonly int[,] ViewsDoTeclado = {
+        { (int)FVM_ICON, 256 },   // 1 icones extra grandes
+        { (int)FVM_ICON, 96 },    // 2 icones grandes
+        { (int)FVM_ICON, 48 },    // 3 icones medios
+        { (int)FVM_SMALLICON, 16 }, // 4 icones pequenos
+        { (int)FVM_LIST, 16 },    // 5 lista
+        { (int)FVM_DETAILS, 16 }, // 6 detalhes
+        { (int)FVM_TILE, 48 },    // 7 blocos
+        { (int)FVM_CONTENT, 32 }  // 8 conteudo
+    };
+
+    void TrocaView(int i)
+    {
+        if (i < 0 || i > ViewsDoTeclado.GetUpperBound(0)) return;
+        Aba a = Atual();
+        if (a == null || a.Browser == null) return;
+        try
+        {
+            Guid iid = new Guid("1AF3A467-214F-4298-908E-06B03E0B39F9");
+            object v = a.Browser.GetCurrentView(ref iid);
+            IFolderView2 fv = v as IFolderView2;
+            if (fv != null) fv.SetViewModeAndIconSize(ViewsDoTeclado[i, 0], ViewsDoTeclado[i, 1]);
+            if (v != null) Marshal.FinalReleaseComObject(v);
+        }
+        catch (Exception ex) { Log("TrocaView falhou: " + ex.Message); }
+    }
+
+    // No modo "lembrar", o estado (modo, tamanho, colunas, ordem) so vai para o registro
+    // se a view for avisada antes de morrer.
+    void SalvaEstado(Aba a)
+    {
+        if (viewMode != 0) return;
+        try
+        {
+            IShellView v = ViewDe(a);
+            if (v != null) v.SaveViewState();
+        }
+        catch { }
+    }
+
     // ---------- comandos ----------
 
     IShellView ViewAtual()
     {
-        Aba a = Atual();
+        return ViewDe(Atual());
+    }
+
+    IShellView ViewDe(Aba a)
+    {
         if (a == null || a.Browser == null) return null;
         try
         {
@@ -1173,6 +1415,41 @@ class FolderWindow : Form, IMessageFilter
         Ativa(i);
     }
 
+    // O IExplorerBrowser hospeda a mesma view do Explorador, mas o host precisa
+    // oferecer cada mensagem ao IShellView. E isto que habilita Ctrl+A/C/X/V,
+    // Ctrl+Z/Y, F2, Delete, Shift+Delete e os demais comandos nativos da pasta.
+    bool TraduzAtalhoDaPasta(ref Message m)
+    {
+        IShellView view = ViewAtual();
+        if (view == null) return false;
+
+        IntPtr janelaView;
+        try { view.GetWindow(out janelaView); }
+        catch { return false; }
+
+        IntPtr foco = Native.GetFocus();
+        if (foco == IntPtr.Zero ||
+            (foco != janelaView && !Native.IsChild(janelaView, foco))) return false;
+
+        int pos = Native.GetMessagePos();
+        MSG msg = new MSG();
+        msg.hwnd = m.HWnd;
+        msg.message = unchecked((uint)m.Msg);
+        msg.wParam = m.WParam;
+        msg.lParam = m.LParam;
+        msg.time = unchecked((uint)Native.GetMessageTime());
+        msg.pt = new Point((short)(pos & 0xFFFF), (short)((pos >> 16) & 0xFFFF));
+
+        IntPtr p = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(MSG)));
+        try
+        {
+            Marshal.StructureToPtr(msg, p, false);
+            return view.TranslateAccelerator(p) == 0;
+        }
+        catch { return false; }
+        finally { Marshal.FreeHGlobal(p); }
+    }
+
     public bool PreFilterMessage(ref Message m)
     {
         const int WM_KEYDOWN = 0x100;
@@ -1185,6 +1462,7 @@ class FolderWindow : Form, IMessageFilter
             if (k == Keys.Left) { Go(SBSP_NAVIGATEBACK); return true; }
             if (k == Keys.Right) { Go(SBSP_NAVIGATEFORWARD); return true; }
             if (k == Keys.Up) { Go(SBSP_PARENT); return true; }
+            if (TraduzAtalhoDaPasta(ref m)) return true;
         }
         else if (m.Msg == WM_KEYDOWN)
         {
@@ -1193,21 +1471,33 @@ class FolderWindow : Form, IMessageFilter
             bool shift = (ModifierKeys & Keys.Shift) == Keys.Shift;
 
             if (k == Keys.BrowserBack) { Go(SBSP_NAVIGATEBACK); return true; }
+            if (k == Keys.BrowserForward) { Go(SBSP_NAVIGATEFORWARD); return true; }
+            if (k == Keys.Back && !Native.EhCampoDeTexto(Native.GetFocus()))
+            { Go(SBSP_NAVIGATEBACK); return true; }
             if (k == Keys.F5) { AtualizaLista(); return true; }
             if (ctrl && k == Keys.L && txtPath != null) { txtPath.Focus(); txtPath.SelectAll(); return true; }
+            if (k == Keys.F6 && txtPath != null) { txtPath.Focus(); txtPath.SelectAll(); return true; }
+            if (ctrl && shift && k >= Keys.D1 && k <= Keys.D8) { TrocaView(k - Keys.D1); return true; }
+            if (ctrl && k == Keys.W)
+            {
+                if (comAbas) FechaAba(ativa); else Close();
+                return true;
+            }
 
             if (comAbas)
             {
                 if (ctrl && k == Keys.T) { NovaAba(null); return true; }
-                if (ctrl && k == Keys.W) { FechaAba(ativa); return true; }
                 if (ctrl && k == Keys.Tab) { CicloAba(shift ? -1 : 1); return true; }
-                if (ctrl && k >= Keys.D1 && k <= Keys.D9)
+                // Ctrl+Shift+1..8 e do shell (modo de exibicao); so Ctrl+N troca de aba.
+                if (ctrl && !shift && k >= Keys.D1 && k <= Keys.D9)
                 {
                     int i = k - Keys.D1;
                     if (i < abas.Count) Ativa(i);
                     return true;
                 }
             }
+
+            if (TraduzAtalhoDaPasta(ref m)) return true;
         }
         else if (m.Msg == WM_XBUTTONDOWN)
         {
@@ -1234,6 +1524,7 @@ static class Program
         bool tabs = true;
         bool maximized = false;
         bool simples = false;
+        string view = null;
         bool? darkOverride = null;
 
         for (int i = 0; i < args.Length; i++)
@@ -1250,6 +1541,7 @@ static class Program
             else if (args[i] == "--light") darkOverride = false;
             else if (args[i] == "--max") maximized = true;
             else if (args[i] == "--simples") simples = true;
+            else if (args[i] == "--view" && i + 1 < args.Length) view = args[++i];
             else if (args[i] == "--debug") FolderWindow.Depurar = true;
             else if (path == null) path = args[i];
         }
@@ -1257,8 +1549,9 @@ static class Program
         if (string.IsNullOrEmpty(path))
         {
             MessageBox.Show(
-                "Uso: FolderPin.exe \"C:\\pasta\" [--icon arquivo.ico] [--aumid ID] [--no-tree|--tree-root [--tree-files]] [--no-tabs] [--simples] [--dark|--light] [--max]",
-                "FolderPin", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "Uso: Firaw - TaskBar.exe \"C:\\pasta\" [--icon arquivo.ico] [--aumid ID] [--no-tree|--tree-root [--tree-files]] [--no-tabs] [--simples] [--dark|--light] [--max]" + Environment.NewLine +
+                "     [--view lembrar|detalhes|lista|blocos|conteudo|icones-pequenos|icones-medios|icones-grandes|icones-extra|auto]",
+                "Firaw - TaskBar", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return 1;
         }
 
@@ -1274,7 +1567,7 @@ static class Program
             }
             catch
             {
-                MessageBox.Show("Local nao encontrado:" + Environment.NewLine + path, "FolderPin",
+                MessageBox.Show("Local nao encontrado:" + Environment.NewLine + path, "Firaw - TaskBar",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 2;
             }
@@ -1304,11 +1597,13 @@ static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         FolderWindow.Log("antes de construir a janela");
-        FolderWindow janela = new FolderWindow(path, icon, tree, dark, maximized, tabs, simples, treeRoot, treeFiles);
+        int modoView, tamIcone;
+        if (!FolderWindow.ParseView(view, out modoView, out tamIcone)) { modoView = 0; tamIcone = 0; }
+        FolderWindow.Log("view=" + (view == null ? "lembrar" : view) + " modo=" + modoView + " tam=" + tamIcone);
+        FolderWindow janela = new FolderWindow(path, icon, tree, dark, maximized, tabs, simples, treeRoot, treeFiles,
+            modoView, tamIcone);
         FolderWindow.Log("janela construida, Run");
         Application.Run(janela);
         return 0;
     }
 }
-
-

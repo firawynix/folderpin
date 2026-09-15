@@ -1,0 +1,43 @@
+name: Gerar pacotes Linux
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: linux
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: linux/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Executar testes
+        run: npm test
+
+      - name: Gerar AppImage e pacote DEB
+        run: npm run build:linux
+
+      - name: Guardar pacotes
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firaw-TaskBar-Linux-1.3.0
+          path: |
+            linux/dist/Firaw-TaskBar-1.3.0-x86_64.AppImage
+            linux/dist/Firaw-TaskBar-1.3.0-amd64.deb
+          if-no-files-found: error

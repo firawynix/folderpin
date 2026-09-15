@@ -56,7 +56,7 @@ async function load(folder, remember = true) {
   try {
     const data = await api.list(folder); const current = tab();
     if (remember && current.path !== data.folder) current.history.push(current.path);
-    current.path = data.folder; state.data = data; document.title = `${shortName(data.folder)} — FolderPin`;
+    current.path = data.folder; state.data = data; document.title = `${shortName(data.folder)} — Firaw - TaskBar`;
     renderTabs(); renderCrumbs(data.folder); renderItems(); $('up').disabled = !data.parent;
   } catch (error) { showError(error); }
 }

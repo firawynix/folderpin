@@ -40,7 +40,7 @@ function createWindow() {
     height: 760,
     minWidth: 720,
     minHeight: 480,
-    title: 'FolderPin',
+    title: 'Firaw - TaskBar',
     backgroundColor: '#071116',
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true },

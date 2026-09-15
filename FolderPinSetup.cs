@@ -8,6 +8,12 @@ using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
+[assembly: AssemblyTitle("Firaw - TaskBar Setup")]
+[assembly: AssemblyProduct("Firaw - TaskBar")]
+[assembly: AssemblyCompany("Firawynix")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
+
 static class Amb
 {
     [DllImport("dwmapi.dll")]
@@ -19,10 +25,15 @@ static class Amb
     [DllImport("uxtheme.dll", EntryPoint = "#136")]
     public static extern void FlushMenuThemes();
 
-    public const string Produto = "FolderPin";
-    public const string Versao = "1.0.0";
+    public const string Produto = "Firaw - TaskBar";
+    public const string ProdutoAntigo = "FolderPin";
+    public const string Versao = "1.3.0";
     public const string ChaveDesinstalar =
+        @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Firaw TaskBar";
+    public const string ChaveDesinstalarAntiga =
         @"Software\Microsoft\Windows\CurrentVersion\Uninstall\FolderPin";
+    public const string NomeMotor = "Firaw - TaskBar.exe";
+    public const string NomeStudio = "Firaw - TaskBar Studio.exe";
 
     public static bool PrefereEscuro()
     {
@@ -144,7 +155,7 @@ class Instalador : Form
         get
         {
             return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FolderPin");
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Amb.Produto);
         }
     }
 
@@ -163,6 +174,7 @@ class Instalador : Form
     public Instalador()
     {
         RegistryKey k = Registry.CurrentUser.OpenSubKey(Amb.ChaveDesinstalar);
+        if (k == null) k = Registry.CurrentUser.OpenSubKey(Amb.ChaveDesinstalarAntiga);
         if (k != null)
         {
             instalacaoAtual = (string)k.GetValue("InstallLocation", null);
@@ -220,7 +232,7 @@ class Instalador : Form
     {
         int y = 16;
 
-        Controls.Add(Rotulo("FolderPin " + Amb.Versao, 20, y, true));
+        Controls.Add(Rotulo(Amb.Produto + " " + Amb.Versao, 20, y, true));
         y += 26;
         Label sub = Rotulo("Abre pastas em janela propria, com botao proprio na barra de tarefas.", 20, y, false);
         sub.ForeColor = Color.FromArgb(160, 160, 160);
@@ -255,9 +267,9 @@ class Instalador : Form
         {
             using (FolderBrowserDialog d = new FolderBrowserDialog())
             {
-                d.Description = "Onde instalar o FolderPin";
+                d.Description = "Onde instalar o " + Amb.Produto;
                 if (d.ShowDialog(this) == DialogResult.OK)
-                    txtLocal.Text = Path.Combine(d.SelectedPath, "FolderPin");
+                    txtLocal.Text = Path.Combine(d.SelectedPath, Amb.Produto);
             }
         }, false));
         y += 42;
@@ -392,8 +404,8 @@ class Instalador : Form
             Directory.CreateDirectory(local);
             Directory.CreateDirectory(Path.Combine(local, "icones"));
 
-            string studio = Path.Combine(local, "FolderPin Studio.exe");
-            string motor = Path.Combine(local, "FolderPin.exe");
+            string studio = Path.Combine(local, Amb.NomeStudio);
+            string motor = Path.Combine(local, Amb.NomeMotor);
             string desinst = Path.Combine(local, "Desinstalar.exe");
 
             lblStatus.Text = "Copiando arquivos...";
@@ -401,29 +413,58 @@ class Instalador : Form
 
             try
             {
-                Extrai("FolderPin.exe", motor);
-                Extrai("FolderPin Studio.exe", studio);
+                Extrai(Amb.NomeMotor, motor);
+                Extrai(Amb.NomeStudio, studio);
             }
             catch (IOException)
             {
                 MessageBox.Show(this,
-                    "Um dos programas esta aberto agora. Feche as janelas do FolderPin e tente de novo.",
+                    "Um dos programas esta aberto agora. Feche as janelas do " + Amb.Produto + " e tente de novo.",
                     Amb.Produto, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             File.Copy(Assembly.GetExecutingAssembly().Location, desinst, true);
 
+            // Cada atalho tem a sua propria copia do motor - e disso que sai o botao
+            // proprio na barra. Trocar so os programas base deixaria os atalhos ja
+            // criados rodando a versao anterior.
+            int presos = 0;
+            foreach (string copia in Directory.GetFiles(local, "*.exe"))
+            {
+                string nome = Path.GetFileName(copia);
+                if (string.Equals(nome, Amb.NomeMotor, StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(nome, Amb.NomeStudio, StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(nome, "FolderPin.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(nome, "FolderPin Studio.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(nome, "Desinstalar.exe", StringComparison.OrdinalIgnoreCase)) continue;
+                try { File.Copy(motor, copia, true); }
+                catch (IOException) { presos++; }
+                catch (UnauthorizedAccessException) { presos++; }
+            }
+
+            // A marca mudou, mas os atalhos existentes continuam funcionando porque
+            // suas copias receberam o motor novo acima. Os dois nomes-base antigos
+            // podem sair sem tocar nos executaveis individuais de cada pasta.
+            try { File.Delete(Path.Combine(local, "FolderPin.exe")); } catch { }
+            try { File.Delete(Path.Combine(local, "FolderPin Studio.exe")); } catch { }
+
             lblStatus.Text = "Criando atalhos...";
             Application.DoEvents();
 
             if (chkMesa.Checked)
-                CriaAtalho(Path.Combine(Mesa, "FolderPin.lnk"), studio, "", local,
+            {
+                CriaAtalho(Path.Combine(Mesa, Amb.Produto + ".lnk"), studio, "", local,
                     studio + ",0", "Criar atalhos de pasta para a barra de tarefas");
+                try { File.Delete(Path.Combine(Mesa, Amb.ProdutoAntigo + ".lnk")); } catch { }
+            }
 
             if (chkIniciar.Checked)
-                CriaAtalho(Path.Combine(MenuIniciar, "FolderPin.lnk"), studio, "", local,
+            {
+                CriaAtalho(Path.Combine(MenuIniciar, Amb.Produto + ".lnk"), studio, "", local,
                     studio + ",0", "Criar atalhos de pasta para a barra de tarefas");
+                try { File.Delete(Path.Combine(MenuIniciar, Amb.ProdutoAntigo + ".lnk")); } catch { }
+            }
 
             long tamanho = 0;
             foreach (string f in Directory.GetFiles(local, "*", SearchOption.AllDirectories))
@@ -435,18 +476,23 @@ class Instalador : Form
             k.SetValue("DisplayName", Amb.Produto);
             k.SetValue("DisplayVersion", Amb.Versao);
             k.SetValue("DisplayIcon", studio);
-            k.SetValue("Publisher", "FolderPin");
+            k.SetValue("Publisher", "Firawynix");
             k.SetValue("InstallLocation", local);
             k.SetValue("UninstallString", "\"" + desinst + "\" --uninstall");
             k.SetValue("EstimatedSize", (int)(tamanho / 1024), RegistryValueKind.DWord);
             k.SetValue("NoModify", 1, RegistryValueKind.DWord);
             k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             k.Close();
+            try { Registry.CurrentUser.DeleteSubKeyTree(Amb.ChaveDesinstalarAntiga, false); } catch { }
 
             lblStatus.Text = "Instalado em " + local;
 
+            string aviso = presos == 0 ? "" :
+                Environment.NewLine + presos + " atalho(s) estavam abertos e continuaram na versao anterior." +
+                Environment.NewLine + "Feche a janela deles e clique em Atualizar de novo." + Environment.NewLine;
+
             if (MessageBox.Show(this,
-                "FolderPin instalado." + Environment.NewLine + Environment.NewLine +
+                Amb.Produto + " instalado." + Environment.NewLine + aviso + Environment.NewLine +
                 "Abrir agora para criar seu primeiro atalho?",
                 Amb.Produto, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
@@ -504,7 +550,8 @@ class Instalador : Form
                     bool nosso = !string.IsNullOrEmpty(alvo) && !string.IsNullOrEmpty(local) &&
                                  alvo.StartsWith(local, StringComparison.OrdinalIgnoreCase);
                     bool etiquetado = !string.IsNullOrEmpty(desc) &&
-                                      desc.StartsWith("FolderPin", StringComparison.OrdinalIgnoreCase);
+                                      (desc.StartsWith(Amb.Produto, StringComparison.OrdinalIgnoreCase) ||
+                                       desc.StartsWith(Amb.ProdutoAntigo, StringComparison.OrdinalIgnoreCase));
                     if (nosso || etiquetado) achados.Add(lnk);
                 }
                 catch { }
@@ -528,6 +575,7 @@ class Instalador : Form
         if (string.IsNullOrEmpty(local))
         {
             RegistryKey k = Registry.CurrentUser.OpenSubKey(Amb.ChaveDesinstalar);
+            if (k == null) k = Registry.CurrentUser.OpenSubKey(Amb.ChaveDesinstalarAntiga);
             if (k != null) local = (string)k.GetValue("InstallLocation", null);
         }
 
@@ -538,7 +586,7 @@ class Instalador : Form
             if (a.IndexOf("User Pinned", StringComparison.OrdinalIgnoreCase) >= 0) temFixado = true;
         }
 
-        string aviso = "Remover o FolderPin?" + Environment.NewLine + Environment.NewLine +
+        string aviso = "Remover o " + Amb.Produto + "?" + Environment.NewLine + Environment.NewLine +
             "Serao apagados: os programas em " + local + " e " + atalhos.Count + " atalho(s) criado(s).";
         if (temFixado)
             aviso += Environment.NewLine + Environment.NewLine +
@@ -565,8 +613,9 @@ class Instalador : Form
         }
 
         try { Registry.CurrentUser.DeleteSubKeyTree(Amb.ChaveDesinstalar, false); } catch { }
+        try { Registry.CurrentUser.DeleteSubKeyTree(Amb.ChaveDesinstalarAntiga, false); } catch { }
 
-        string recado = "FolderPin removido.";
+        string recado = Amb.Produto + " removido.";
         if (presos > 0)
             recado += Environment.NewLine + presos +
                 " arquivo(s) estavam abertos e ficaram para tras em " + local + ".";
@@ -615,6 +664,7 @@ class Instalador : Form
             string eu = Assembly.GetExecutingAssembly().Location;
             string local = null;
             RegistryKey k = Registry.CurrentUser.OpenSubKey(Amb.ChaveDesinstalar);
+            if (k == null) k = Registry.CurrentUser.OpenSubKey(Amb.ChaveDesinstalarAntiga);
             if (k != null) local = (string)k.GetValue("InstallLocation", null);
 
             // Rodando de dentro da pasta que vai sumir: continua a partir do temporario.
@@ -623,7 +673,7 @@ class Instalador : Form
             {
                 try
                 {
-                    string copia = Path.Combine(Path.GetTempPath(), "folderpin-desinstalar.exe");
+                    string copia = Path.Combine(Path.GetTempPath(), "firaw-taskbar-desinstalar.exe");
                     File.Copy(eu, copia, true);
                     System.Diagnostics.Process.Start(copia, "--uninstall --from-temp");
                     return;
