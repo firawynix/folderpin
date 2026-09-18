@@ -206,3 +206,8 @@ Anotados porque são armadilhas reais de shell no Windows:
 ## Licença
 
 MIT — veja [LICENSE](LICENSE).
+
+## Privacidade e assinatura
+
+- [Política de privacidade](privacy.md)
+- [Política de assinatura de código](code-signing-policy.md)
