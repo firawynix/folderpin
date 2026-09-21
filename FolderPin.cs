@@ -9,8 +9,8 @@ using Microsoft.Win32;
 [assembly: System.Reflection.AssemblyTitle("Firaw - TaskBar")]
 [assembly: System.Reflection.AssemblyProduct("Firaw - TaskBar")]
 [assembly: System.Reflection.AssemblyCompany("Firawynix")]
-[assembly: System.Reflection.AssemblyVersion("1.3.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.3.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.3.2.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.3.2.0")]
 
 [StructLayout(LayoutKind.Sequential)]
 struct RECT { public int left, top, right, bottom; }

@@ -25,15 +25,30 @@ if errorlevel 1 exit /b 1
 echo [2/4] motor da janela...
 "%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /out:"Firaw - TaskBar.exe" "FolderPin.cs"
 if errorlevel 1 exit /b 1
+call :sign "Firaw - TaskBar.exe"
+if errorlevel 1 exit /b 1
 
 echo [3/4] configurador...
 "%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /resource:"Firaw - TaskBar.exe" /out:"Firaw - TaskBar Studio.exe" "FolderPinStudio.cs"
+if errorlevel 1 exit /b 1
+call :sign "Firaw - TaskBar Studio.exe"
 if errorlevel 1 exit /b 1
 
 echo [4/4] instalador...
 "%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /resource:"Firaw - TaskBar.exe" /resource:"Firaw - TaskBar Studio.exe" /out:"Firaw - TaskBar Setup.exe" "FolderPinSetup.cs"
 if errorlevel 1 exit /b 1
+call :sign "Firaw - TaskBar Setup.exe"
+if errorlevel 1 exit /b 1
 
 echo.
 echo Pronto. Rode "Firaw - TaskBar Setup.exe" para instalar.
-endlocal
+exit /b 0
+
+:sign
+if not defined FIRAW_SIGNING_THUMBPRINT exit /b 0
+if not defined FIRAW_SIGNTOOL (
+    echo FIRAW_SIGNTOOL nao foi informado para assinar %~1.
+    exit /b 1
+)
+"%FIRAW_SIGNTOOL%" sign /fd sha256 /sha1 "%FIRAW_SIGNING_THUMBPRINT%" /d "Firaw - TaskBar" /tr http://timestamp.digicert.com /td sha256 %1
+exit /b %ERRORLEVEL%

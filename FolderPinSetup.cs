@@ -11,8 +11,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("Firaw - TaskBar Setup")]
 [assembly: AssemblyProduct("Firaw - TaskBar")]
 [assembly: AssemblyCompany("Firawynix")]
-[assembly: AssemblyVersion("1.3.1.0")]
-[assembly: AssemblyFileVersion("1.3.1.0")]
+[assembly: AssemblyVersion("1.3.2.0")]
+[assembly: AssemblyFileVersion("1.3.2.0")]
 
 static class Amb
 {
@@ -44,7 +44,7 @@ static class Amb
 
     public const string Produto = "Firaw - TaskBar";
     public const string ProdutoAntigo = "FolderPin";
-    public const string Versao = "1.3.1";
+    public const string Versao = "1.3.2";
     public const string ChaveDesinstalar =
         @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Firaw TaskBar";
     public const string ChaveDesinstalarAntiga =
