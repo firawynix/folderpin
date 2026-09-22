@@ -11,8 +11,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("Firaw - TaskBar Studio")]
 [assembly: AssemblyProduct("Firaw - TaskBar")]
 [assembly: AssemblyCompany("Firawynix")]
-[assembly: AssemblyVersion("1.3.2.0")]
-[assembly: AssemblyFileVersion("1.3.2.0")]
+[assembly: AssemblyVersion("1.3.3.0")]
+[assembly: AssemblyFileVersion("1.3.3.0")]
 
 static class Sys
 {
@@ -1184,6 +1184,7 @@ class Studio : Form
     [STAThread]
     static void Main()
     {
+        AutoUpdate.Verificar("folderpin", Application.ProductVersion);
         try
         {
             Sys.SetPreferredAppMode(Sys.PrefersDark() ? 2 : 3);

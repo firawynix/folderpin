@@ -11,8 +11,8 @@ using Microsoft.Win32;
 [assembly: AssemblyTitle("Firaw - TaskBar Setup")]
 [assembly: AssemblyProduct("Firaw - TaskBar")]
 [assembly: AssemblyCompany("Firawynix")]
-[assembly: AssemblyVersion("1.3.2.0")]
-[assembly: AssemblyFileVersion("1.3.2.0")]
+[assembly: AssemblyVersion("1.3.3.0")]
+[assembly: AssemblyFileVersion("1.3.3.0")]
 
 static class Amb
 {
@@ -44,7 +44,7 @@ static class Amb
 
     public const string Produto = "Firaw - TaskBar";
     public const string ProdutoAntigo = "FolderPin";
-    public const string Versao = "1.3.2";
+    public const string Versao = "1.3.3";
     public const string ChaveDesinstalar =
         @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Firaw TaskBar";
     public const string ChaveDesinstalarAntiga =
@@ -149,6 +149,7 @@ static class Amb
 
 class Instalador : Form
 {
+    readonly bool silencioso;
     static readonly Color Bg = Color.FromArgb(32, 32, 32);
     static readonly Color Campo = Color.FromArgb(45, 45, 45);
     static readonly Color Fg = Color.FromArgb(235, 235, 235);
@@ -188,8 +189,9 @@ class Instalador : Form
         }
     }
 
-    public Instalador()
+    public Instalador(bool silencioso = false)
     {
+        this.silencioso = silencioso;
         RegistryKey k = Registry.CurrentUser.OpenSubKey(Amb.ChaveDesinstalar);
         if (k == null) k = Registry.CurrentUser.OpenSubKey(Amb.ChaveDesinstalarAntiga);
         if (k != null)
@@ -425,6 +427,7 @@ class Instalador : Form
             string studio = Path.Combine(local, Amb.NomeStudio);
             string motor = Path.Combine(local, Amb.NomeMotor);
             string desinst = Path.Combine(local, "Desinstalar.exe");
+            string atualizador = Path.Combine(local, "FirawAutoUpdate.exe");
 
             lblStatus.Text = "Copiando arquivos...";
             Application.DoEvents();
@@ -433,10 +436,11 @@ class Instalador : Form
             {
                 Extrai(Amb.NomeMotor, motor);
                 Extrai(Amb.NomeStudio, studio);
+                Extrai("FirawAutoUpdate.exe", atualizador);
             }
             catch (IOException)
             {
-                MessageBox.Show(this,
+                if (!silencioso) MessageBox.Show(this,
                     "Um dos programas esta aberto agora. Feche as janelas do " + Amb.Produto + " e tente de novo.",
                     Amb.Produto, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -453,6 +457,7 @@ class Instalador : Form
                 string nome = Path.GetFileName(copia);
                 if (string.Equals(nome, Amb.NomeMotor, StringComparison.OrdinalIgnoreCase)) continue;
                 if (string.Equals(nome, Amb.NomeStudio, StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(nome, "FirawAutoUpdate.exe", StringComparison.OrdinalIgnoreCase)) continue;
                 if (string.Equals(nome, "FolderPin.exe", StringComparison.OrdinalIgnoreCase)) continue;
                 if (string.Equals(nome, "FolderPin Studio.exe", StringComparison.OrdinalIgnoreCase)) continue;
                 if (string.Equals(nome, "Desinstalar.exe", StringComparison.OrdinalIgnoreCase)) continue;
@@ -510,6 +515,7 @@ class Instalador : Form
                 Environment.NewLine + presos + " atalho(s) estavam abertos e continuaram na versao anterior." +
                 Environment.NewLine + "Feche a janela deles e clique em Atualizar de novo." + Environment.NewLine;
 
+            if (silencioso) { Close(); return; }
             if (MessageBox.Show(this,
                 Amb.Produto + " instalado." + Environment.NewLine + aviso + Environment.NewLine +
                 "Abrir agora para criar seu primeiro atalho?",
@@ -526,7 +532,7 @@ class Instalador : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Falhou: " + ex.Message, Amb.Produto,
+            if (!silencioso) MessageBox.Show(this, "Falhou: " + ex.Message, Amb.Produto,
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             lblStatus.Text = "Falhou.";
         }
@@ -662,10 +668,12 @@ class Instalador : Form
     {
         bool desinstalar = false;
         bool doTemp = false;
+        bool silencioso = false;
         foreach (string a in args)
         {
             if (a == "--uninstall" || a == "/uninstall") desinstalar = true;
             if (a == "--from-temp") doTemp = true;
+            if (string.Equals(a, "/S", StringComparison.OrdinalIgnoreCase)) silencioso = true;
         }
 
         try
@@ -704,6 +712,12 @@ class Instalador : Form
             return;
         }
 
+        if (silencioso)
+        {
+            Instalador instalador = new Instalador(true);
+            instalador.Instalar(null, EventArgs.Empty);
+            return;
+        }
         Application.Run(new Instalador());
     }
 }

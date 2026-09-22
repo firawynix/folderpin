@@ -11,7 +11,7 @@ if not exist "%CSC%" (
     exit /b 1
 )
 
-set REFS=/r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll
+set REFS=/r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll
 set OPTS=/nologo /target:winexe /platform:anycpu
 
 cd /d "%~dp0"
@@ -23,19 +23,23 @@ if errorlevel 1 exit /b 1
 if errorlevel 1 exit /b 1
 
 echo [2/4] motor da janela...
-"%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /out:"Firaw - TaskBar.exe" "FolderPin.cs"
+"%CSC%" /nologo /target:winexe /platform:anycpu /r:System.dll /out:"FirawAutoUpdate.exe" "FirawAutoUpdate.cs"
+if errorlevel 1 exit /b 1
+call :sign "FirawAutoUpdate.exe"
+if errorlevel 1 exit /b 1
+"%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /out:"Firaw - TaskBar.exe" "FolderPin.cs" "AutoUpdate.cs"
 if errorlevel 1 exit /b 1
 call :sign "Firaw - TaskBar.exe"
 if errorlevel 1 exit /b 1
 
 echo [3/4] configurador...
-"%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /resource:"Firaw - TaskBar.exe" /out:"Firaw - TaskBar Studio.exe" "FolderPinStudio.cs"
+"%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /resource:"Firaw - TaskBar.exe" /out:"Firaw - TaskBar Studio.exe" "FolderPinStudio.cs" "AutoUpdate.cs"
 if errorlevel 1 exit /b 1
 call :sign "Firaw - TaskBar Studio.exe"
 if errorlevel 1 exit /b 1
 
 echo [4/4] instalador...
-"%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /resource:"Firaw - TaskBar.exe" /resource:"Firaw - TaskBar Studio.exe" /out:"Firaw - TaskBar Setup.exe" "FolderPinSetup.cs"
+"%CSC%" %OPTS% %REFS% /win32icon:"firaw-taskbar.ico" /resource:"firaw-taskbar.ico",FirawTaskBarIcon /resource:"Firaw - TaskBar.exe" /resource:"Firaw - TaskBar Studio.exe" /resource:"FirawAutoUpdate.exe" /out:"Firaw - TaskBar Setup.exe" "FolderPinSetup.cs"
 if errorlevel 1 exit /b 1
 call :sign "Firaw - TaskBar Setup.exe"
 if errorlevel 1 exit /b 1
